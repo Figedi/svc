@@ -1,0 +1,21 @@
+# base ignoreable files
+coverage
+.nyc_output
+Dockerfile
+docker-compose.ci.yml
+CHANGELOG.md
+tsconfig.json
+.development.env
+.prettierrc
+.eslintrc.js
+.dockerignore
+.gitignore
+.editorconfig
+.commitlintrc.js
+node-prune.sh
+.circleci
+bin
+resources
+lint-staged.config.js
+# typescript specific ignorable files
+src

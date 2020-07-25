@@ -1,0 +1,83 @@
+{
+  "name": "@figedi/svc",
+  "version": "0.6.6",
+  "description": "Base service library for my services",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "repository": "https://github.com/figedi/svc.git",
+  "author": "Felix Kaminski <kaminski.felix@gmail.com>",
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc",
+    "specs": "mocha --exit --require ts-node/register/transpile-only './src/**/*.spec.ts'",
+    "specs:debug": "node --inspect-brk ./node_modules/.bin/mocha --require ts-node/register/transpile-only './src/**/*.spec.ts'",
+    "lint": "eslint --cache --ext .js,.jsx,.ts,.tsx --format=pretty ./src"
+  },
+  "config": {
+    "exportAliases": {
+      "config": "./dist/app/config",
+      "app": "./dist/app",
+      "kms": "./dist/kms",
+      "logger": "./dist/logger"
+    }
+  },
+  "husky": {
+    "hooks": {
+      "pre-commit": "lint-staged",
+      "commit-msg": "commitlint -E HUSKY_GIT_PARAMS"
+    }
+  },
+  "peerDependencies": {
+    "@figedi/svc-config": "0.0.3"
+  },
+  "devDependencies": {
+    "@figedi/svc-config": "0.0.3",
+    "@types/chai": "^4.2.7",
+    "@types/fast-json-stable-stringify": "^2.0.0",
+    "@types/google-cloud__kms": "^1.5.0",
+    "@types/lodash": "^4.14.149",
+    "@types/mocha": "^5.2.7",
+    "@types/node": "^13.1.8",
+    "@types/node-fetch": "^2.5.4",
+    "@types/pino": "^5.15.3",
+    "@types/sinon": "^7.5.1",
+    "@types/yargs": "^15.0.0",
+    "@typescript-eslint/eslint-plugin": "^3.6.1",
+    "chai": "^4.2.0",
+    "commitlint": "^9.1.0",
+    "eslint": "^7.4.0",
+    "eslint-config-airbnb-typescript": "^8.0.2",
+    "eslint-config-prettier": "^6.11.0",
+    "eslint-formatter-pretty": "^4.0.0",
+    "eslint-plugin-eslint-comments": "^3.2.0",
+    "eslint-plugin-import": "^2.22.0",
+    "eslint-plugin-promise": "^4.2.1",
+    "generate-export-aliases": "^1.1.0",
+    "husky": "^4.2.5",
+    "lint-staged": "^10.2.11",
+    "mocha": "^7.0.0",
+    "nock": "^11.7.2",
+    "prettier": "^1.19.1",
+    "sinon": "^8.1.0",
+    "ts-node": "^8.6.2",
+    "typescript": "^3.7.5"
+  },
+  "dependencies": {
+    "@google-cloud/kms": "^1.6.2",
+    "@kubernetes/client-node": "^0.11.0",
+    "@types/semver": "^7.1.0",
+    "@figedi/metering": "^1.1.5",
+    "@figedi/typecop": "^1.1.0",
+    "axios": "^0.19.1",
+    "fast-json-stable-stringify": "^2.1.0",
+    "inversify": "^5.0.1",
+    "lodash": "^4.17.15",
+    "pino": "^5.16.0",
+    "pino-pretty": "^3.5.0",
+    "pkg-up": "^3.1.0",
+    "rxjs": "^6.5.4",
+    "semver": "^7.1.3",
+    "ws": "^7.2.1",
+    "yargs": "^15.1.0"
+  }
+}
