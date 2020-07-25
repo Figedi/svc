@@ -1,6 +1,6 @@
 import { set, cloneDeep } from "lodash";
 import { getFallback, getVersion, SecretsConfiguration } from "@figedi/svc-config";
-import { encryptJson } from "../sopsUtils";
+import { encryptJson } from "@figedi/sops/test";
 
 const modifyVersion = (semverVersion: string, patchFn: (major: number, minor: number, patch: number) => string) => {
     const [major, minor, patch] = semverVersion.split(".").map(parseInt);

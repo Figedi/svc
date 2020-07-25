@@ -1,15 +1,15 @@
-import { KeyManagementServiceClient } from "@google-cloud/kms";
+import { v1 } from "@google-cloud/kms";
 import { MeteringRecorder } from "@figedi/metering";
 import { JSONSchema } from "@figedi/typecop";
+import { createKMSManagementClient } from "@figedi/sops";
 import axios, { AxiosResponse } from "axios";
 import { resolve } from "url";
 
 import { sleep } from "../../utils";
 import { BaseRemoteSource, RemoteSource } from "./BaseRemoteSource";
 import { K8sReplicaService } from "./K8sReplicaService";
-import { createKMSManagementClient } from "./sops";
 
-export const createKMSManagementFromContext = (k8sReplicaService: K8sReplicaService): KeyManagementServiceClient => {
+export const createKMSManagementFromContext = (k8sReplicaService: K8sReplicaService): v1.KeyManagementServiceClient => {
     const { projectId, serviceAccountPath } = k8sReplicaService;
 
     return createKMSManagementClient(projectId, serviceAccountPath);
@@ -42,7 +42,7 @@ export interface PollingRemoteSourceConfig<Schema> {
     fallback?: Schema;
     serviceName: string;
     poll: RequiredPollingOpts & PollingOpts;
-    kmsManagementClientFactory?: (ctx: K8sReplicaService) => KeyManagementServiceClient;
+    kmsManagementClientFactory?: (ctx: K8sReplicaService) => v1.KeyManagementServiceClient;
     getMetricsRecorder?: () => MeteringRecorder;
 }
 

@@ -1,8 +1,9 @@
-import nock from "nock";
 import { getVersion, ConfigRepository, getRootSchema } from "@figedi/svc-config";
+import { setupStubbedKms } from "@figedi/sops/test";
+import nock from "nock";
 import { expect } from "chai";
 import { assert, spy } from "sinon";
-import { KeyManagementServiceClient } from "@google-cloud/kms";
+import { v1 } from "@google-cloud/kms";
 import { take } from "rxjs/operators";
 
 import {
@@ -10,7 +11,6 @@ import {
     createStubbedResponses,
     StubbedResponses,
     StubbedConfigValues,
-    setupStubbedKms,
 } from "./shared.specFiles";
 import { TestApplicationBuilder } from "../../TestApplicationBuilder";
 import { KubernetesRollingUpdateStrategy } from "./KubernetesRollingUpdateStrategy";
@@ -31,7 +31,7 @@ const PROJECTIONS = {
 const defaultReactsOnFn: ReactsOnFn<ConfigRepository> = () => false;
 
 const createTestApplicationBuilder = (
-    kmsClient: KeyManagementServiceClient,
+    kmsClient: v1.KeyManagementServiceClient,
     reactsOn = defaultReactsOnFn,
     initialValue?: ConfigRepository,
     pollingIntervalMs = 5000,
@@ -77,7 +77,7 @@ describe("RemoteConfig", function RemoteConfigTest() {
     this.timeout(20000);
     let key: Buffer;
     let iv: Buffer;
-    let kms: KeyManagementServiceClient;
+    let kms: v1.KeyManagementServiceClient;
     let responses: StubbedResponses;
     let values: StubbedConfigValues;
 

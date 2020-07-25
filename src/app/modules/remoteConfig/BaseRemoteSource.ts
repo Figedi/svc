@@ -1,7 +1,8 @@
 /* eslint-disable max-classes-per-file */
 import { MeteringRecorder, Gauge } from "@figedi/metering";
 import { createValidator, SchemaValidationError, SchemaValidator, JSONSchema } from "@figedi/typecop";
-import { KeyManagementServiceClient } from "@google-cloud/kms";
+import { v1 } from "@google-cloud/kms";
+import { decryptSopsJson } from "@figedi/sops";
 import { Subject, Observable } from "rxjs";
 import { take } from "rxjs/operators";
 import { parse } from "semver";
@@ -10,7 +11,6 @@ import stringify from "fast-json-stable-stringify";
 import { Logger } from "../../../logger";
 import { remapTreeAsync } from "../../utils";
 import { ServiceWithLifecycleHandlers } from "../../types/service";
-import { decryptSopsJson } from "./sops";
 import { K8sReplicaService } from "./K8sReplicaService";
 import { AppContext } from "./types/base";
 
@@ -39,7 +39,7 @@ export abstract class BaseRemoteSource<Schema> {
 
     private validator?: SchemaValidator;
     private rootSchema?: JSONSchema<Schema>;
-    private kmsClient?: KeyManagementServiceClient;
+    private kmsClient?: v1.KeyManagementServiceClient;
     protected stopped = true;
     protected lastValue: Schema | Error | null = null;
     protected metrics?: ConfigMetrics;
@@ -51,7 +51,7 @@ export abstract class BaseRemoteSource<Schema> {
         private serviceName: string,
         private baseVersion: string,
         private schema: JSONSchema<Schema>,
-        private kmsManagementClientFactory: (ctx: K8sReplicaService) => KeyManagementServiceClient,
+        private kmsManagementClientFactory: (ctx: K8sReplicaService) => v1.KeyManagementServiceClient,
         private getMetricsRecorder?: () => MeteringRecorder,
         private fallback?: Schema,
     ) {
@@ -79,7 +79,7 @@ export abstract class BaseRemoteSource<Schema> {
         }
     }
 
-    private async decryptConfigValue(config: Schema, kmsClient: KeyManagementServiceClient) {
+    private async decryptConfigValue(config: Schema, kmsClient: v1.KeyManagementServiceClient) {
         return remapTreeAsync(
             config,
             (_, path) => String(path[path.length - 1]).includes(".enc.json"),
