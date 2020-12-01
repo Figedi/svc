@@ -185,14 +185,7 @@ ApplicationBuilder.create<ConfigRepository>()
             streamedValue: streamed(PROJECTIONS.logLevel),
         }),
     }));
-    /**
-     * The application needs commands to run (command-pattern).
-     * You can register different commands with registerCommand() 
-     * and run them with the cli-param --command <commandName>.
-     * 
-     * To register a default-command, which is always run when
-     * no param is passed, use registerDefaultCommand()
-     */
+
     .registerDefaultCommand("start", ({ resolve, config }) => ({
         info: {
             name: "DefaultCommand",
