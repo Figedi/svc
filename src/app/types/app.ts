@@ -133,6 +133,7 @@ export type AppConfig = {
     rootPath: string;
     packageJson: Record<string, any>;
     version: string;
+    envName: string;
 };
 
 export interface BaseRegisterFnArgs<Config> {

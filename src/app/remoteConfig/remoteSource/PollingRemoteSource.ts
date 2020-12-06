@@ -1,19 +1,14 @@
-import { v1 } from "@google-cloud/kms";
 import { MeteringRecorder } from "@figedi/metering";
 import { JSONSchema } from "@figedi/typecop";
-import { createKMSManagementClient } from "@figedi/sops";
 import axios, { AxiosResponse } from "axios";
 import { resolve } from "url";
 
 import { sleep } from "../../utils";
-import { BaseRemoteSource, RemoteSource } from "./BaseRemoteSource";
-import { K8sReplicaService } from "./K8sReplicaService";
-
-export const createKMSManagementFromContext = (k8sReplicaService: K8sReplicaService): v1.KeyManagementServiceClient => {
-    const { projectId, serviceAccountPath } = k8sReplicaService;
-
-    return createKMSManagementClient(projectId, serviceAccountPath);
-};
+import { BaseRemoteSource } from "./BaseRemoteSource";
+import { IJsonDecryptor } from "../types";
+import { IRemoteSource } from "./types";
+import { MaxRetriesWithDataError, MaxRetriesWithoutDataError } from "./errors";
+import { Logger } from "../../../logger";
 
 export enum AcceptedVersionRange {
     none = "none",
@@ -38,11 +33,12 @@ export interface PollingOpts {
 }
 
 export interface PollingRemoteSourceConfig<Schema> {
+    logger: Logger;
     schema: JSONSchema<Schema>;
     fallback?: Schema;
     serviceName: string;
     poll: RequiredPollingOpts & PollingOpts;
-    kmsManagementClientFactory?: (ctx: K8sReplicaService) => v1.KeyManagementServiceClient;
+    jsonDecryptor: IJsonDecryptor;
     getMetricsRecorder?: () => MeteringRecorder;
 }
 
@@ -65,24 +61,22 @@ const DEFAULT_POLLING_REMOTE_SOURCE_CONFIG: PollingOpts = {
 const DEFAULT_BACKOFF_BASE_MS = 1000;
 const EXP_BACKOFF_RANDOMNESS_MS = 10;
 
-export class MaxRetriesWithoutDataError extends Error {}
-export class MaxRetriesWithDataError extends Error {}
-
 /**
  * Fetches a remote-config value from a config-server by periodically polling.
  * This class performs validation-check based on a given schema to guarantee that
  * a fetched config will always be in the correct format.
  */
-export class PollingRemoteSource<Schema> extends BaseRemoteSource<Schema> implements RemoteSource<Schema> {
+export class PollingRemoteSource<Schema> extends BaseRemoteSource<Schema> implements IRemoteSource<Schema> {
     private config!: PollingRemoteSourceConfig<Schema>;
     private pollingTimeout?: NodeJS.Timer;
 
     constructor(config: PollingRemoteSourceConfig<Schema>) {
         super(
+            config.logger,
             config.serviceName,
             config.poll.version,
             config.schema,
-            config.kmsManagementClientFactory || createKMSManagementFromContext,
+            config.jsonDecryptor,
             config.getMetricsRecorder,
             config.fallback,
         );
@@ -116,7 +110,7 @@ export class PollingRemoteSource<Schema> extends BaseRemoteSource<Schema> implem
     private fetchData = async (url: string, tries = 0): Promise<AxiosResponse<ConfigServiceResponse<Schema>>> => {
         const { maxTriesWithValue, maxTriesWithoutValue, backoffBaseMs } = this.config.poll;
         try {
-            this.logger.info({ tries }, `Getting config from url via http: ${url}`);
+            this.config.logger.info({ tries }, `Getting config from url via http: ${url}`);
             return await axios({ url, method: "GET" });
         } catch (e) {
             if (!this.lastValue && tries >= maxTriesWithoutValue!) {
@@ -147,7 +141,7 @@ export class PollingRemoteSource<Schema> extends BaseRemoteSource<Schema> implem
              * recovery-approach: if the repeated fetching to a config-service failed,
              * try to use the fallback-value. If there is no fallback provided, throw the error
              */
-            this.logger.error({ error: e }, `Error while fetching config from config-service: ${e.message}`);
+            this.config.logger.error({ error: e }, `Error while fetching config from config-service: ${e.message}`);
             const fallbackUsed = await this.tryUseFallback();
             if (!fallbackUsed) {
                 throw e;

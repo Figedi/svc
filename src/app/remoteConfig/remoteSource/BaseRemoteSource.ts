@@ -1,8 +1,6 @@
 /* eslint-disable max-classes-per-file */
-import { MeteringRecorder, Gauge } from "@figedi/metering";
+import { MeteringRecorder } from "@figedi/metering";
 import { createValidator, SchemaValidationError, SchemaValidator, JSONSchema } from "@figedi/typecop";
-import { v1 } from "@google-cloud/kms";
-import { decryptSopsJson } from "@figedi/sops";
 import { Subject, Observable } from "rxjs";
 import { take } from "rxjs/operators";
 import { parse } from "semver";
@@ -10,48 +8,25 @@ import stringify from "fast-json-stable-stringify";
 
 import { Logger } from "../../../logger";
 import { remapTreeAsync } from "../../utils";
-import { ServiceWithLifecycleHandlers } from "../../types/service";
-import { K8sReplicaService } from "./K8sReplicaService";
-import { AppContext } from "./types/base";
-
-export interface RemoteSource<Schema> extends ServiceWithLifecycleHandlers {
-    setContext: (appContext: AppContext) => void;
-    execute: () => Promise<any>;
-    get: () => Promise<Schema>;
-    stream: () => Observable<Schema>;
-}
-
-export type ConfigMetrics = {
-    requiredVersionMajorTotal: Gauge;
-    requiredVersionMinorTotal: Gauge;
-    requiredVersionPatchTotal: Gauge;
-    lastConsumedVersionTotal: Gauge;
-    invalidDataReceivedTotal: Gauge;
-    lastConsumedVersionMajorTotal: Gauge;
-    lastConsumedVersionMinorTotal: Gauge;
-    lastConsumedVersionPatchTotal: Gauge;
-};
-
-export class InvalidConfigWithoutDataError extends Error {}
+import { IJsonDecryptor } from "../types";
+import { ConfigMetrics } from "./types";
+import { InvalidConfigWithoutDataError } from "./errors";
 
 export abstract class BaseRemoteSource<Schema> {
     public value$!: Subject<Schema>;
 
     private validator?: SchemaValidator;
     private rootSchema?: JSONSchema<Schema>;
-    private kmsClient?: v1.KeyManagementServiceClient;
     protected stopped = true;
     protected lastValue: Schema | Error | null = null;
     protected metrics?: ConfigMetrics;
-    protected logger!: Logger;
-
-    private k8sReplicaService!: K8sReplicaService;
 
     constructor(
+        private logger: Logger,
         private serviceName: string,
         private baseVersion: string,
         private schema: JSONSchema<Schema>,
-        private kmsManagementClientFactory: (ctx: K8sReplicaService) => v1.KeyManagementServiceClient,
+        private decryptorClient: IJsonDecryptor,
         private getMetricsRecorder?: () => MeteringRecorder,
         private fallback?: Schema,
     ) {
@@ -60,12 +35,6 @@ export abstract class BaseRemoteSource<Schema> {
          * 3.1 raise an alarm
          */
         this.value$ = new Subject();
-    }
-
-    public setContext({ logger, k8s }: AppContext): void {
-        this.logger = logger;
-        this.k8sReplicaService = k8s;
-        this.kmsClient = this.kmsManagementClientFactory(this.k8sReplicaService);
     }
 
     protected validate(data: unknown): data is Schema {
@@ -79,7 +48,7 @@ export abstract class BaseRemoteSource<Schema> {
         }
     }
 
-    private async decryptConfigValue(config: Schema, kmsClient: v1.KeyManagementServiceClient) {
+    private async decryptConfigValue(config: Schema) {
         return remapTreeAsync(
             config,
             (_, path) => String(path[path.length - 1]).includes(".enc.json"),
@@ -92,7 +61,7 @@ export abstract class BaseRemoteSource<Schema> {
                     path: path.map(pathPart => {
                         return String(pathPart).replace(".enc.json", ".json");
                     }),
-                    value: await decryptSopsJson(kmsClient, value),
+                    value: await this.decryptorClient.decrypt(value),
                 };
             },
         );
@@ -193,8 +162,8 @@ export abstract class BaseRemoteSource<Schema> {
     }
 
     protected async tryUseFallback(): Promise<boolean> {
-        if (this.fallback && this.kmsClient) {
-            const config = await this.decryptConfigValue(this.fallback, this.kmsClient);
+        if (this.fallback) {
+            const config = await this.decryptConfigValue(this.fallback);
             await this.trySetNextState(config, this.baseVersion, false);
             return true;
         }
@@ -241,9 +210,6 @@ export abstract class BaseRemoteSource<Schema> {
     }
 
     public async preflight(): Promise<void> {
-        if (!this.logger || !this.k8sReplicaService) {
-            throw new Error(`Preflight called before setContext(). This should never happen`);
-        }
         this.initMetrics();
         this.trySetRequiredMetrics();
         this.stopped = false;
@@ -267,5 +233,4 @@ export abstract class BaseRemoteSource<Schema> {
         return this.value$.asObservable();
     }
 }
-
 /* eslint-enable max-classes-per-file */

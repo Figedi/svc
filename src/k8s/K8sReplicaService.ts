@@ -1,13 +1,14 @@
 import { KubeConfig, CoreV1Api } from "@kubernetes/client-node";
 import { hostname } from "os";
-import { Logger } from "../../../logger";
+import { IReplicaService } from "../app/remoteConfig";
+import { Logger } from "../logger";
 
 interface K8sReplicaServiceOpts {
     namespace: string; // the namespace the svc is deployed in, e.g. 'dev'
     commonLabel: string; // a label which is the same for all replicas, e.g. 'subservice'
 }
 
-export class K8sReplicaService {
+export class K8sReplicaService implements IReplicaService {
     private k8sApi?: CoreV1Api;
     public projectId?: string;
     public serviceAccountPath?: string;
@@ -46,7 +47,7 @@ export class K8sReplicaService {
         }
     }
 
-    public get isInK8s(): boolean {
+    public get runsInCloud(): boolean {
         return !!this.k8sApi;
     }
 

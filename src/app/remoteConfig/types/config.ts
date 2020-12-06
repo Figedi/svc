@@ -1,9 +1,8 @@
-import { BaseRegisterFnArgs } from "../../../types";
-import { RemoteSource } from "../BaseRemoteSource";
-import { K8sReloadingStrategy } from "../KubernetesRollingUpdateStrategy";
-import { OnceRemoteConfigValue } from "../OnceRemoteConfigValue";
-import { StreamedRemoteConfigValue } from "../StreamedRemoteConfigValue";
-import { Primitive } from "../../../types/base";
+import { IRemoteSource } from "../remoteSource/types";
+import { StreamedRemoteConfigValue, OnceRemoteConfigValue } from "../remoteValues";
+import { IReloadingStrategy } from "./base";
+import { Primitive } from "../../types/base";
+import { BaseRegisterFnArgs } from "../../types";
 
 export const streamedRemoteRef: StreamedRemoteRefTransformFn<any> = propGetter => ({
     propGetter,
@@ -69,10 +68,10 @@ export type AddRemoteConfigToPrimitives<C, T> = T extends Primitive | Date
 export type RemoteConfigFn<RemoteConfig, Config, ProjectedRemoteConfig> = (
     envArgs: BaseRegisterFnArgs<Config>,
 ) => {
-    source: RemoteSource<RemoteConfig>;
+    source: IRemoteSource<RemoteConfig>;
     reloading?: {
         reactsOn: (oldConfig: RemoteConfig | undefined, newConfig: RemoteConfig) => boolean;
-        strategy: K8sReloadingStrategy;
+        strategy: IReloadingStrategy;
     };
     projections?: (
         remoteArgs: RemoteDependencyArgs<RemoteConfig>,

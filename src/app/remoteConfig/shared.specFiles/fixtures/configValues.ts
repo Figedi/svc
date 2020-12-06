@@ -1,5 +1,6 @@
 import { set, cloneDeep } from "lodash";
 import { getFallback, getVersion, SecretsConfiguration } from "@figedi/svc-config";
+// eslint-disable-next-line import/no-extraneous-dependencies
 import { encryptJson } from "@figedi/sops/test";
 
 const modifyVersion = (semverVersion: string, patchFn: (major: number, minor: number, patch: number) => string) => {

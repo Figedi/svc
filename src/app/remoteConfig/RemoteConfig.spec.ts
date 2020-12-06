@@ -1,5 +1,7 @@
 import { getVersion, ConfigRepository, getRootSchema } from "@figedi/svc-config";
-import { setupStubbedKms } from "@figedi/sops/test";
+import { SopsClient } from "@figedi/sops";
+import { KmsKeyDecryptor } from "@figedi/sops/kms";
+import { setupStubbedKms } from "@figedi/sops/dist/kms/shared.specFiles/kmsStubs";
 import nock from "nock";
 import { expect } from "chai";
 import { assert, spy } from "sinon";
@@ -11,16 +13,16 @@ import {
     createStubbedResponses,
     StubbedResponses,
     StubbedConfigValues,
+    createUpdateStrategyStub,
 } from "./shared.specFiles";
-import { TestApplicationBuilder } from "../../TestApplicationBuilder";
-import { KubernetesRollingUpdateStrategy } from "./KubernetesRollingUpdateStrategy";
-import { PollingRemoteSource, MaxRetriesWithoutDataError } from "./PollingRemoteSource";
-import { createStubbedLogger } from "../../../logger";
-import { ApplicationBuilder } from "../../ApplicationBuilder";
+import { TestApplicationBuilder } from "../TestApplicationBuilder";
+import { PollingRemoteSource } from "./remoteSource/PollingRemoteSource";
+import { createStubbedLogger } from "../../logger";
+import { ApplicationBuilder } from "../ApplicationBuilder";
 import { ReactsOnFn } from "./types";
-import { InvalidConfigWithoutDataError } from "./BaseRemoteSource";
-import { sleep } from "../../utils";
-import { assertInTestAppBuilder, assertErrorInTestAppBuilder } from "../../shared.specFiles/helpers";
+import { InvalidConfigWithoutDataError, MaxRetriesWithoutDataError } from "./remoteSource";
+import { sleep } from "../utils";
+import { assertInTestAppBuilder, assertErrorInTestAppBuilder } from "../shared.specFiles/helpers";
 
 const REMOTE_CONFIG_ENDPOINT = "http://localhost:8080"; // example endpoint, will never be executed due to nock
 
@@ -36,19 +38,20 @@ const createTestApplicationBuilder = (
     initialValue?: ConfigRepository,
     pollingIntervalMs = 5000,
 ) => {
-    const app = ApplicationBuilder.create<ConfigRepository>({
+    const appBuilder = ApplicationBuilder.create<ConfigRepository>({
         loggerFactory: createStubbedLogger,
     })
         .setEnv(() => ({
             serviceName: "example-svc",
             environmentName: "dev",
         }))
-        .setRemoteConfig(({ config }) => ({
+        .setRemoteConfig(({ logger, config }) => ({
             source: new PollingRemoteSource({
+                logger,
                 schema: getRootSchema(),
                 serviceName: config.serviceName,
                 fallback: initialValue,
-                kmsManagementClientFactory: () => kmsClient,
+                jsonDecryptor: new SopsClient(KmsKeyDecryptor.createWithKmsClient(kmsClient)),
                 poll: {
                     pollingIntervalMs,
                     maxTriesWithoutValue: 2,
@@ -59,7 +62,7 @@ const createTestApplicationBuilder = (
             }),
             reloading: {
                 reactsOn,
-                strategy: new KubernetesRollingUpdateStrategy(),
+                strategy: createUpdateStrategyStub(),
             },
             projections: ({ once, streamed }) => ({
                 onceValue: once(PROJECTIONS.logLevel),
@@ -68,8 +71,8 @@ const createTestApplicationBuilder = (
         }));
 
     return {
-        app,
-        testApp: TestApplicationBuilder.mount(app),
+        app: appBuilder,
+        testApp: TestApplicationBuilder.mount(appBuilder),
     };
 };
 

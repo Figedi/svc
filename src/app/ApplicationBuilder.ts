@@ -28,13 +28,7 @@ import {
     BaseRegisterFnArgs,
 } from "./types";
 
-import {
-    AppContext,
-    K8sReplicaService,
-    RemoteConfigFn,
-    setRemoteConfig,
-    UnpackRemoteConfigTypes,
-} from "./modules/remoteConfig";
+import { RemoteConfigFn, setRemoteConfig, UnpackRemoteConfigTypes } from "./remoteConfig";
 /* eslint-enable import/no-cycle */
 
 export type AppPreflightFn<C, RC> = (container: RegisterFnArgs<C, RC>) => Promise<any> | any;
@@ -113,7 +107,6 @@ export class ApplicationBuilder<Config, RemoteConfig> {
     public container = new Container();
     public config: Config = {} as Config;
     public remoteConfig: RemoteConfig = {} as RemoteConfig;
-    public appContext!: AppContext;
     public servicesWithLifecycleHandlers: ServiceWithLifecycleHandlers[] = [];
 
     static create = <RC = never, C = never>(
@@ -145,14 +138,18 @@ export class ApplicationBuilder<Config, RemoteConfig> {
             },
         });
 
-        this.appContext = {
-            logger: this.rootLogger,
-            environmentName: envName,
-            k8s: new K8sReplicaService(this.rootLogger, { namespace: envName, commonLabel: "subservice" }),
-        };
+        // this.appContext = {
+        //     logger: this.rootLogger,
+        //     environmentName: envName,
+        //     replicaService: ReplicaServiceFactory.create(this.rootLogger, {
+        //         namespace: envName,
+        //         commonLabel: "subservice",
+        //     }),
+        // };
 
         this.app = {
             packageJson,
+            envName,
             startedAt: new Date(),
             rootPath: dirname(packageJsonPath),
             version: packageJson.version,

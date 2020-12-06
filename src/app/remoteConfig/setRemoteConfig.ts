@@ -7,12 +7,12 @@ import {
     OnceRemoteRefTransformConfig,
     StreamedRemoteRefTransformConfig,
 } from "./types";
-import { ApplicationBuilder } from "../../ApplicationBuilder";
+import { ApplicationBuilder } from "../ApplicationBuilder";
 /* eslint-enable import/no-cycle */
 import { RemoteConfigHandler } from "./RemoteConfigHandler";
-import { remapTree } from "../../utils";
-import { OnceRemoteConfigValue } from "./OnceRemoteConfigValue";
-import { StreamedRemoteConfigValue } from "./StreamedRemoteConfigValue";
+import { remapTree } from "../utils";
+import { StreamedRemoteConfigValue, OnceRemoteConfigValue } from "./remoteValues";
+import { serviceWithPreflightOrShutdown } from "../types";
 
 const REF_TYPES = {
     STREAMED_REMOTE: 3,
@@ -24,8 +24,9 @@ export const setRemoteConfig = <Config, RemoteConfig, ProjectedRemoteConfig>(
     envFn: RemoteConfigFn<RemoteConfig, Config, ProjectedRemoteConfig>,
 ): ApplicationBuilder<Config, ProjectedRemoteConfig> => {
     const { projections, source, reloading } = envFn(appBuilder.buildResolveArgs(appBuilder.container));
-    source.setContext(appBuilder.appContext);
-    appBuilder.servicesWithLifecycleHandlers.push(source);
+    if (serviceWithPreflightOrShutdown(source)) {
+        appBuilder.servicesWithLifecycleHandlers.push(source);
+    }
 
     if (!(reloading || projections)) {
         throw new Error(`Please define at least 'projections' or 'reloading' for remote-config`);
@@ -34,7 +35,6 @@ export const setRemoteConfig = <Config, RemoteConfig, ProjectedRemoteConfig>(
     const stream$ = source.stream().pipe(share());
 
     if (reloading && reloading.reactsOn) {
-        reloading.strategy.setContext(appBuilder.appContext);
         const handler = new RemoteConfigHandler(stream$, reloading.reactsOn, reloading.strategy.execute);
         appBuilder.servicesWithLifecycleHandlers.push(handler);
     }

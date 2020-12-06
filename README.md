@@ -143,7 +143,7 @@ ApplicationBuilder.create<ConfigRepository>()
             schema: getRootSchema(),
             serviceName: config.serviceName,
             fallback: getFallback(),
-            kmsManagementClientFactory: () => resolve('kmsClient'),
+            jsonDecryptor: resolve('sopsClient'), // e.g. SopsClient from @figedi/sops
             poll: {
                 pollingIntervalMs: 5000, // poll every 5s
                 maxTriesWithoutValue: 2, // retry twice when no value was consumed before throwing
