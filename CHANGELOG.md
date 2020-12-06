@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.6.10-beta.0](https://github.com/figedi/svc/compare/v0.6.9...v0.6.10-beta.0) (2020-12-06)
+
+
+### Features
+
+* makes k8s usage optional ([b175ab8](https://github.com/figedi/svc/commit/b175ab8f2d4b28d77a1e21da4f087e76001cf6c8))
+
 ### [0.6.9](https://github.com/figedi/svc/compare/v0.6.8...v0.6.9) (2020-12-02)
 
 
