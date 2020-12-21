@@ -117,7 +117,7 @@ ApplicationBuilder.create<ConfigRepository>()
      * - A reloading-strategy. Defines what to do with new values (e.g. a full service restart or inline updates)
      * - projections: A fully-typed projection based on the consumed config-values to individual streams
      */
-    .setRemoteConfig(({ config, resolve }) => ({
+    .setRemoteConfig(({ config }) => ({
         /**
          * Sets a PollingRemoteSource. This source periodically polls
          * data from a given endpoint. 

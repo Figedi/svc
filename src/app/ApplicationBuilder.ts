@@ -7,7 +7,6 @@ import { dirname } from "path";
 import { argv as defaultArgv } from "yargs";
 import { createLogger } from "../logger";
 import { sleep, remapTree, toConstantCase } from "./utils";
-/* eslint-disable import/no-cycle */
 
 import {
     EnvTransformFn,
@@ -25,11 +24,11 @@ import {
     ErrorHandle,
     ShutdownHandle,
     Command,
+    ResolveRegisterFnArgs,
     BaseRegisterFnArgs,
 } from "./types";
 
 import { RemoteConfigFn, setRemoteConfig, UnpackRemoteConfigTypes } from "./remoteConfig";
-/* eslint-enable import/no-cycle */
 
 export type AppPreflightFn<C, RC> = (container: RegisterFnArgs<C, RC>) => Promise<any> | any;
 
@@ -39,7 +38,7 @@ export type ShutdownHandlerFn<C, RC> = (
     reason?: string,
 ) => ShutdownHandle | Promise<ShutdownHandle>;
 
-export interface RegisterFnArgs<Config, RemoteConfig> extends BaseRegisterFnArgs<Config> {
+export interface RegisterFnArgs<Config, RemoteConfig> extends ResolveRegisterFnArgs<Config> {
     remoteConfig: UnpackRemoteConfigTypes<RemoteConfig>;
 }
 
@@ -138,15 +137,6 @@ export class ApplicationBuilder<Config, RemoteConfig> {
             },
         });
 
-        // this.appContext = {
-        //     logger: this.rootLogger,
-        //     environmentName: envName,
-        //     replicaService: ReplicaServiceFactory.create(this.rootLogger, {
-        //         namespace: envName,
-        //         commonLabel: "subservice",
-        //     }),
-        // };
-
         this.app = {
             packageJson,
             envName,
@@ -156,7 +146,13 @@ export class ApplicationBuilder<Config, RemoteConfig> {
         };
     }
 
-    public buildResolveArgs = (container: interfaces.Container): RegisterFnArgs<Config, RemoteConfig> => ({
+    private buildBaseResolveArgs = (): BaseRegisterFnArgs<Config> => ({
+        config: this.config as any, // ts cannot infer here the unpacked-types
+        app: this.app,
+        logger: this.rootLogger,
+    });
+
+    private buildResolveArgs = (container: interfaces.Container): RegisterFnArgs<Config, RemoteConfig> => ({
         resolve: <T>(serviceIdentifier: interfaces.ServiceIdentifier<T>): T => {
             try {
                 return container.get<T>(serviceIdentifier);
@@ -169,9 +165,7 @@ export class ApplicationBuilder<Config, RemoteConfig> {
             }
         },
         remoteConfig: this.remoteConfig as any,
-        config: this.config as any, // ts cannot infer here the unpacked-types
-        app: this.app,
-        logger: this.rootLogger,
+        ...this.buildBaseResolveArgs(),
     });
 
     /**
@@ -188,7 +182,14 @@ export class ApplicationBuilder<Config, RemoteConfig> {
     public setRemoteConfig<ProjectedRemoteConfig>(
         envFn: RemoteConfigFn<RemoteConfig, Config, ProjectedRemoteConfig>,
     ): ApplicationBuilder<Config, ProjectedRemoteConfig> {
-        return setRemoteConfig(this, envFn);
+        const remoteConfig = setRemoteConfig(
+            envFn,
+            this.buildBaseResolveArgs,
+            this.servicesWithLifecycleHandlers.push.bind(this.servicesWithLifecycleHandlers),
+        );
+        this.remoteConfig = remoteConfig as any; // ts-cannot infer the projected type here
+
+        return (this as any) as ApplicationBuilder<Config, ProjectedRemoteConfig>;
     }
 
     /**

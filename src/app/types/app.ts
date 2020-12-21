@@ -137,10 +137,13 @@ export type AppConfig = {
 };
 
 export interface BaseRegisterFnArgs<Config> {
-    resolve: Container["get"];
     config: UnpackTransformConfigTypes<Config>;
     app: AppConfig;
     logger: pino.Logger;
+}
+
+export interface ResolveRegisterFnArgs<Config> extends BaseRegisterFnArgs<Config> {
+    resolve: Container["get"];
 }
 
 export interface Provider<T> extends Function {

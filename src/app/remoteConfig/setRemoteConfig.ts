@@ -1,5 +1,4 @@
 import { share } from "rxjs/operators";
-/* eslint-disable import/no-cycle */
 import {
     RemoteConfigFn,
     onceRemoteRef,
@@ -7,25 +6,25 @@ import {
     OnceRemoteRefTransformConfig,
     StreamedRemoteRefTransformConfig,
 } from "./types";
-import { ApplicationBuilder } from "../ApplicationBuilder";
-/* eslint-enable import/no-cycle */
 import { RemoteConfigHandler } from "./RemoteConfigHandler";
 import { remapTree } from "../utils";
 import { StreamedRemoteConfigValue, OnceRemoteConfigValue } from "./remoteValues";
-import { serviceWithPreflightOrShutdown } from "../types";
+import { serviceWithPreflightOrShutdown, BaseRegisterFnArgs } from "../types";
 
 const REF_TYPES = {
     STREAMED_REMOTE: 3,
     ONCE_REMOTE: 4,
 };
 
+// todo: make this lazily evaluated in order to support resolve here
 export const setRemoteConfig = <Config, RemoteConfig, ProjectedRemoteConfig>(
-    appBuilder: ApplicationBuilder<Config, RemoteConfig>,
     envFn: RemoteConfigFn<RemoteConfig, Config, ProjectedRemoteConfig>,
-): ApplicationBuilder<Config, ProjectedRemoteConfig> => {
-    const { projections, source, reloading } = envFn(appBuilder.buildResolveArgs(appBuilder.container));
+    buildBaseResolveArgs: () => BaseRegisterFnArgs<Config>,
+    pushToLifecycleHandlers: (klass: any) => void,
+): ProjectedRemoteConfig => {
+    const { projections, source, reloading } = envFn(buildBaseResolveArgs());
     if (serviceWithPreflightOrShutdown(source)) {
-        appBuilder.servicesWithLifecycleHandlers.push(source);
+        pushToLifecycleHandlers(source);
     }
 
     if (!(reloading || projections)) {
@@ -36,19 +35,18 @@ export const setRemoteConfig = <Config, RemoteConfig, ProjectedRemoteConfig>(
 
     if (reloading && reloading.reactsOn) {
         const handler = new RemoteConfigHandler(stream$, reloading.reactsOn, reloading.strategy.execute);
-        appBuilder.servicesWithLifecycleHandlers.push(handler);
+        pushToLifecycleHandlers(handler);
     }
     const projectionConfig = projections ? projections({ once: onceRemoteRef, streamed: streamedRemoteRef }) : {};
 
-    // eslint-disable-next-line no-param-reassign
-    appBuilder.remoteConfig = remapTree(
+    return remapTree(
         projectionConfig,
         {
             // eslint-disable-next-line no-underscore-dangle
             predicate: value => !!value && value.__type === REF_TYPES.ONCE_REMOTE,
             transform: ({ propGetter }: OnceRemoteRefTransformConfig<RemoteConfig>) => {
                 const remoteConfigValue = new OnceRemoteConfigValue(stream$, propGetter);
-                appBuilder.servicesWithLifecycleHandlers.push(remoteConfigValue);
+                pushToLifecycleHandlers(remoteConfigValue);
                 return remoteConfigValue;
             },
         },
@@ -57,11 +55,9 @@ export const setRemoteConfig = <Config, RemoteConfig, ProjectedRemoteConfig>(
             predicate: value => !!value && value.__type === REF_TYPES.STREAMED_REMOTE,
             transform: ({ propGetter }: StreamedRemoteRefTransformConfig<RemoteConfig>) => {
                 const remoteConfigValue = new StreamedRemoteConfigValue(stream$, propGetter);
-                appBuilder.servicesWithLifecycleHandlers.push(remoteConfigValue);
+                pushToLifecycleHandlers(remoteConfigValue);
                 return remoteConfigValue;
             },
         },
     );
-
-    return (appBuilder as any) as ApplicationBuilder<Config, ProjectedRemoteConfig>;
 };
