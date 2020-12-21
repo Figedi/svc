@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.6.11](https://github.com/figedi/svc/compare/v0.6.10...v0.6.11) (2020-12-21)
+
+
+### Bug Fixes
+
+* removes resolve from remoteConfig ([ff8ace8](https://github.com/figedi/svc/commit/ff8ace8bf01e8e4bd2f1c6ea31ad2b03e4b03cf9))
+
 ### [0.6.10](https://github.com/figedi/svc/compare/v0.6.10-beta.0...v0.6.10) (2020-12-06)
 
 ### [0.6.10-beta.0](https://github.com/figedi/svc/compare/v0.6.9...v0.6.10-beta.0) (2020-12-06)
