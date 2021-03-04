@@ -5,9 +5,10 @@ import pkgUp from "pkg-up";
 import { once, merge } from "lodash";
 import { dirname } from "path";
 import { argv as defaultArgv } from "yargs";
+import { readFileSync } from "fs";
+
 import { createLogger } from "../logger";
 import { sleep, remapTree, toConstantCase } from "./utils";
-
 import {
     EnvTransformFn,
     OptEnvTransformFn,
@@ -26,6 +27,8 @@ import {
     Command,
     ResolveRegisterFnArgs,
     BaseRegisterFnArgs,
+    FileTransformFn,
+    FileTransformConfig,
 } from "./types";
 
 import { RemoteConfigFn, setRemoteConfig, UnpackRemoteConfigTypes } from "./remoteConfig";
@@ -46,6 +49,7 @@ const REF_TYPES = {
     ENV: 0,
     OPT: 1,
     REF: 2,
+    FILE: 3,
 };
 
 const env: EnvTransformFn = (transformFn, defaultValue) => ({
@@ -63,6 +67,12 @@ const ref: RefTransformFn = (referenceValue, refTransformFn) => ({
     referenceValue,
     refTransformFn,
     __type: 2,
+});
+
+const file: FileTransformFn = (filePath, fileTransformFn) => ({
+    filePath,
+    fileTransformFn,
+    __type: 3,
 });
 
 const defaultAppBuilderConfig: AppBuilderConfig = {
@@ -214,7 +224,21 @@ export class ApplicationBuilder<Config, RemoteConfig> {
      */
     public setEnv<C>(envFn: EnvFn<C>): ApplicationBuilder<C, RemoteConfig> {
         this.config = remapTree(
-            envFn({ env, optEnv, ref, app: this.app }),
+            envFn({ file, env, optEnv, ref, app: this.app }),
+            {
+                predicate: value => !!value && value.__type === REF_TYPES.FILE,
+                transform: ({ filePath, fileTransformFn }: FileTransformConfig, path) => {
+                    if (filePath.endsWith(".json")) {
+                        // eslint-disable-next-line import/no-dynamic-require
+                        return require(filePath);
+                    }
+                    if (!fileTransformFn) {
+                        throw new Error(`Neither a json file nor a transform-fn at path ${path.join(".")} provided`);
+                    }
+
+                    return fileTransformFn(readFileSync(filePath));
+                },
+            },
             {
                 predicate: value => !!value && value.__type === REF_TYPES.ENV,
                 transform: ({ transformFn, defaultValue }: EnvTransformConfig, path) => {

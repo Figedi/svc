@@ -39,6 +39,7 @@ export interface Command {
 // =================== env stuff / config stuff.. todo: move to correct file
 
 export type DepdencyArgs = {
+    file: FileTransformFn;
     env: EnvTransformFn;
     optEnv: OptEnvTransformFn;
     ref: RefTransformFn;
@@ -48,6 +49,11 @@ export type DepdencyArgs = {
 export type EnvFn<Config extends Record<string, any>> = (
     envArgs: DepdencyArgs,
 ) => AddTransformConfigToPrimitives<Config>;
+
+export type FileTransformFn = <ReturnValue = Record<string, any>>(
+    filePath: string,
+    fileTransformFn?: (value: Buffer) => ReturnValue,
+) => FileTransformConfig<ReturnValue>;
 
 export type EnvTransformFn = <ReturnValue = string>(
     transformFn?: (value: string) => ReturnValue,
@@ -80,12 +86,19 @@ export interface RefTransformConfig<ReturnValue = string> {
     refTransformFn?: (value?: string) => ReturnValue;
 }
 
+export interface FileTransformConfig<ReturnValue = Record<string, any>> {
+    __type: 3;
+    filePath: string;
+    fileTransformFn?: (fileBuffer: Buffer) => ReturnValue;
+}
+
 export type UnpackOptionalConfig<T> = T extends OptEnvTransformConfig<infer V> ? Maybe<V> : never;
 export type UnpackEnvConfig<T> = T extends EnvTransformConfig<infer V> ? V : never;
 export type UnpackRefConfig<T> = T extends RefTransformConfig<infer V> ? V : never;
+export type UnpackFileConfig<T> = T extends FileTransformConfig<infer V> ? V : never;
 
 // this type tries to unpack the types one by one. If none of the configs match, it returns never
-export type Unpacked<T> = UnpackRefConfig<T> | UnpackOptionalConfig<T> | UnpackEnvConfig<T>;
+export type Unpacked<T> = UnpackRefConfig<T> | UnpackOptionalConfig<T> | UnpackEnvConfig<T> | UnpackFileConfig<T>;
 
 /**
  * Here's the deal: This automatic  inferrence of generics in ts works only partially
@@ -112,6 +125,7 @@ export type UnpackTransformConfigTypes<T> = T extends
     | OptEnvTransformConfig<any>
     | EnvTransformConfig<any>
     | RefTransformConfig<any>
+    | FileTransformConfig<any>
     ? Unpacked<T> extends never
         ? T
         : Unpacked<T>
@@ -121,9 +135,14 @@ export type UnpackTransformConfigTypes<T> = T extends
 
 // typescript does weird things with booleans by converting it tu true | false, which then breaks inferrence
 export type AddTransformConfigToPrimitives<T> = T extends Primitive | Date
-    ? T | EnvTransformConfig<T> | OptEnvTransformConfig<T> | RefTransformConfig<T>
+    ? T | EnvTransformConfig<T> | OptEnvTransformConfig<T> | RefTransformConfig<T> | FileTransformConfig<T>
     : T extends boolean
-    ? boolean | EnvTransformConfig<boolean> | OptEnvTransformConfig<boolean> | RefTransformConfig<boolean>
+    ?
+          | boolean
+          | EnvTransformConfig<boolean>
+          | OptEnvTransformConfig<boolean>
+          | RefTransformConfig<boolean>
+          | FileTransformConfig<boolean>
     : T extends object // eslint-disable-line @typescript-eslint/ban-types
     ? { [P in keyof T]: AddTransformConfigToPrimitives<T[P]> }
     : T;
