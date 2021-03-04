@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.6.12](https://github.com/figedi/svc/compare/v0.6.11...v0.6.12) (2021-03-04)
+
+
+### Features
+
+* adds file type for setEnv ([9af8ca3](https://github.com/figedi/svc/commit/9af8ca32f9ed2c65387c87e118435995437b3257))
+
 ### [0.6.11](https://github.com/figedi/svc/compare/v0.6.10...v0.6.11) (2020-12-21)
 
 
