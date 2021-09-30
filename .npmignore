@@ -20,3 +20,4 @@ lint-staged.config.js
 ./**/*.spec.*
 # typescript specific ignorable files
 src
+resources

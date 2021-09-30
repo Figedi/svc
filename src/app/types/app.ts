@@ -1,8 +1,9 @@
 import pino from "pino";
 import { Container } from "inversify";
+import { ValidatorSpec, Spec } from "envalid";
 
 import { Logger } from "../../logger";
-import { Maybe, Primitive } from "./base";
+import { Primitive } from "./base";
 
 export enum ErrorHandle {
     IGNORE = "IGNORE",
@@ -38,31 +39,37 @@ export interface Command {
 
 // =================== env stuff / config stuff.. todo: move to correct file
 
-export type DepdencyArgs = {
-    file: FileTransformFn;
-    env: EnvTransformFn;
-    optEnv: OptEnvTransformFn;
-    ref: RefTransformFn;
+export type DependencyArgs = {
+    $env: EnvalidTransformer;
     app: AppConfig;
 };
 
 export type EnvFn<Config extends Record<string, any>> = (
-    envArgs: DepdencyArgs,
+    envArgs: DependencyArgs,
 ) => AddTransformConfigToPrimitives<Config>;
 
-export type FileTransformFn = <ReturnValue = Record<string, any>>(
-    filePath: string,
+export type FileTransformFn = <ReturnValue = Buffer>(
+    filePath: string | ((env: Omit<DependencyArgs, "$env">) => string),
     fileTransformFn?: (value: Buffer) => ReturnValue,
 ) => FileTransformConfig<ReturnValue>;
+
+export type EnvalidTransformer = {
+    any: EnvTransformFn;
+    ref: RefTransformFn;
+    file: FileTransformFn;
+    str: <T extends string = string>(spec?: Spec<T>) => ValidatorSpec<string>;
+    host: <T extends string = string>(spec?: Spec<T>) => ValidatorSpec<string>;
+    url: <T extends string = string>(spec?: Spec<T>) => ValidatorSpec<string>;
+    bool: <T extends boolean = boolean>(spec?: Spec<T>) => ValidatorSpec<boolean>;
+    num: <T extends number = number>(spec?: Spec<T>) => ValidatorSpec<number>;
+    port: <T extends number = number>(spec?: Spec<T>) => ValidatorSpec<number>;
+    json: <T>(spec?: Spec<T>) => ValidatorSpec<T>;
+};
 
 export type EnvTransformFn = <ReturnValue = string>(
     transformFn?: (value: string) => ReturnValue,
     defaultValue?: ReturnValue,
 ) => EnvTransformConfig<ReturnValue>;
-
-export type OptEnvTransformFn = <ReturnValue = string>(
-    optTransformFn?: (value?: string) => ReturnValue,
-) => OptEnvTransformConfig<ReturnValue>;
 
 export type RefTransformFn = <ReturnValue = string>(
     referenceValue: string,
@@ -75,30 +82,25 @@ export interface EnvTransformConfig<ReturnValue = string> {
     defaultValue?: ReturnValue;
 }
 
-export interface OptEnvTransformConfig<ReturnValue = string> {
-    __type: 1;
-    optTransformFn?: (value?: string) => ReturnValue;
-}
-
 export interface RefTransformConfig<ReturnValue = string> {
     __type: 2;
     referenceValue: string;
     refTransformFn?: (value?: string) => ReturnValue;
 }
 
-export interface FileTransformConfig<ReturnValue = Record<string, any>> {
+export interface FileTransformConfig<ReturnValue = Buffer> {
     __type: 3;
-    filePath: string;
+    filePath: string | ((env: Omit<DependencyArgs, "$env">) => string);
     fileTransformFn?: (fileBuffer: Buffer) => ReturnValue;
 }
 
-export type UnpackOptionalConfig<T> = T extends OptEnvTransformConfig<infer V> ? Maybe<V> : never;
 export type UnpackEnvConfig<T> = T extends EnvTransformConfig<infer V> ? V : never;
 export type UnpackRefConfig<T> = T extends RefTransformConfig<infer V> ? V : never;
 export type UnpackFileConfig<T> = T extends FileTransformConfig<infer V> ? V : never;
+export type UnpackValidatorSpec<T> = T extends ValidatorSpec<infer V> ? V : never;
 
 // this type tries to unpack the types one by one. If none of the configs match, it returns never
-export type Unpacked<T> = UnpackRefConfig<T> | UnpackOptionalConfig<T> | UnpackEnvConfig<T> | UnpackFileConfig<T>;
+export type Unpacked<T> = UnpackRefConfig<T> | UnpackEnvConfig<T> | UnpackFileConfig<T> | UnpackValidatorSpec<T>;
 
 /**
  * Here's the deal: This automatic  inferrence of generics in ts works only partially
@@ -122,10 +124,10 @@ export type Unpacked<T> = UnpackRefConfig<T> | UnpackOptionalConfig<T> | UnpackE
  * 4. If it is not  a transformConfig or an object, do nothing (e.g. it might be a primitive)
  */
 export type UnpackTransformConfigTypes<T> = T extends
-    | OptEnvTransformConfig<any>
     | EnvTransformConfig<any>
     | RefTransformConfig<any>
     | FileTransformConfig<any>
+    | ValidatorSpec<any>
     ? Unpacked<T> extends never
         ? T
         : Unpacked<T>
@@ -135,14 +137,14 @@ export type UnpackTransformConfigTypes<T> = T extends
 
 // typescript does weird things with booleans by converting it tu true | false, which then breaks inferrence
 export type AddTransformConfigToPrimitives<T> = T extends Primitive | Date
-    ? T | EnvTransformConfig<T> | OptEnvTransformConfig<T> | RefTransformConfig<T> | FileTransformConfig<T>
+    ? T | EnvTransformConfig<T> | RefTransformConfig<T> | FileTransformConfig<T> | ValidatorSpec<T>
     : T extends boolean
     ?
           | boolean
           | EnvTransformConfig<boolean>
-          | OptEnvTransformConfig<boolean>
           | RefTransformConfig<boolean>
           | FileTransformConfig<boolean>
+          | ValidatorSpec<boolean>
     : T extends object // eslint-disable-line @typescript-eslint/ban-types
     ? { [P in keyof T]: AddTransformConfigToPrimitives<T[P]> }
     : T;

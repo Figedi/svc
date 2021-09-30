@@ -6,19 +6,18 @@ import { once, merge } from "lodash";
 import { dirname } from "path";
 import { argv as defaultArgv } from "yargs";
 import { readFileSync } from "fs";
+import { str, bool, num, host, port, url, json, ValidatorSpec, cleanEnv } from "envalid";
 
 import { createLogger } from "../logger";
 import { sleep, remapTree, toConstantCase } from "./utils";
 import {
     EnvTransformFn,
-    OptEnvTransformFn,
     RefTransformFn,
     AppBuilderConfig,
     AppConfig,
     ServiceWithLifecycleHandlers,
     EnvFn,
     EnvTransformConfig,
-    OptEnvTransformConfig,
     RefTransformConfig,
     serviceWithPreflightOrShutdown,
     Provider,
@@ -29,6 +28,7 @@ import {
     BaseRegisterFnArgs,
     FileTransformFn,
     FileTransformConfig,
+    EnvalidTransformer,
 } from "./types";
 
 import { RemoteConfigFn, setRemoteConfig, UnpackRemoteConfigTypes } from "./remoteConfig";
@@ -52,15 +52,10 @@ const REF_TYPES = {
     FILE: 3,
 };
 
-const env: EnvTransformFn = (transformFn, defaultValue) => ({
+const any: EnvTransformFn = (transformFn, defaultValue) => ({
     transformFn,
     defaultValue,
     __type: 0,
-});
-
-const optEnv: OptEnvTransformFn = optTransformFn => ({
-    optTransformFn,
-    __type: 1,
 });
 
 const ref: RefTransformFn = (referenceValue, refTransformFn) => ({
@@ -74,6 +69,19 @@ const file: FileTransformFn = (filePath, fileTransformFn) => ({
     fileTransformFn,
     __type: 3,
 });
+
+const $env: EnvalidTransformer = {
+    str,
+    bool,
+    num,
+    host,
+    port,
+    url,
+    json,
+    file,
+    any,
+    ref,
+};
 
 const defaultAppBuilderConfig: AppBuilderConfig = {
     shutdownGracePeriodSeconds: 10,
@@ -224,19 +232,17 @@ export class ApplicationBuilder<Config, RemoteConfig> {
      */
     public setEnv<C>(envFn: EnvFn<C>): ApplicationBuilder<C, RemoteConfig> {
         this.config = remapTree(
-            envFn({ file, env, optEnv, ref, app: this.app }),
+            envFn({ $env, app: this.app }),
             {
                 predicate: value => !!value && value.__type === REF_TYPES.FILE,
-                transform: ({ filePath, fileTransformFn }: FileTransformConfig, path) => {
-                    if (filePath.endsWith(".json")) {
-                        // eslint-disable-next-line import/no-dynamic-require
-                        return require(filePath);
-                    }
+                transform: ({ filePath, fileTransformFn }: FileTransformConfig) => {
+                    const resolvedPath = typeof filePath === "function" ? filePath({ app: this.app }) : filePath;
+                    const fileContent = readFileSync(resolvedPath);
                     if (!fileTransformFn) {
-                        throw new Error(`Neither a json file nor a transform-fn at path ${path.join(".")} provided`);
+                        return fileContent;
                     }
 
-                    return fileTransformFn(readFileSync(filePath));
+                    return fileTransformFn(fileContent);
                 },
             },
             {
@@ -253,10 +259,11 @@ export class ApplicationBuilder<Config, RemoteConfig> {
                 },
             },
             {
-                predicate: value => !!value && value.__type === REF_TYPES.OPT,
-                transform: ({ optTransformFn }: OptEnvTransformConfig, path) => {
-                    const envValue = process.env[toConstantCase(path)];
-                    return optTransformFn && envValue ? optTransformFn(envValue) : envValue;
+                predicate: value => !!value && typeof value === "object" && "_parse" in value,
+                transform: (refValue: ValidatorSpec<any>, path) => {
+                    const envLookupKey = toConstantCase(path);
+                    const parsedEnv = cleanEnv(process.env, { [envLookupKey]: refValue });
+                    return parsedEnv[envLookupKey];
                 },
             },
             {
@@ -267,6 +274,7 @@ export class ApplicationBuilder<Config, RemoteConfig> {
                 },
             },
         );
+
         return (this as any) as ApplicationBuilder<C, RemoteConfig>;
     }
 
