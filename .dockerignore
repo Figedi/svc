@@ -7,4 +7,3 @@ node_modules
 *.log
 .phraseapp.yml
 helm
-resources
