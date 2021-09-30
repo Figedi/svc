@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.6.13](https://github.com/figedi/svc/compare/v0.6.12...v0.6.13) (2021-09-30)
+
+
+### Features
+
+* adds envalid as env parser for more powerful parsing-ways ([eb8d40b](https://github.com/figedi/svc/commit/eb8d40b5480347a3ad29322a7ae7d3727adf93c4))
+
+
+### Bug Fixes
+
+* adds missing test resources to builder image ([590b0ce](https://github.com/figedi/svc/commit/590b0ceb191abceaae6d51e4704f8b112f4a4653))
+
 ### [0.6.12](https://github.com/figedi/svc/compare/v0.6.11...v0.6.12) (2021-03-04)
 
 
