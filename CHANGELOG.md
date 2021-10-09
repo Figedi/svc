@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.6.14](https://github.com/figedi/svc/compare/v0.6.13...v0.6.14) (2021-10-09)
+
+
+### Features
+
+* adds args parser for commands ([a3a9390](https://github.com/figedi/svc/commit/a3a93904285ff9377d92f114d999ceaebf6a9c27))
+
 ### [0.6.13](https://github.com/figedi/svc/compare/v0.6.12...v0.6.13) (2021-09-30)
 
 
