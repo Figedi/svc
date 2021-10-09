@@ -2,14 +2,15 @@
 import { Container, interfaces } from "inversify";
 import pino from "pino";
 import pkgUp from "pkg-up";
-import { once, merge } from "lodash";
+import { uniq, camelCase, once, merge } from "lodash";
+import { set } from "lodash/fp";
 import { dirname } from "path";
-import { argv as defaultArgv } from "yargs";
+import yargs, { argv as defaultArgv, Options, InferredOptionType } from "yargs";
 import { readFileSync } from "fs";
 import { str, bool, num, host, port, url, json, ValidatorSpec, cleanEnv } from "envalid";
 
 import { createLogger } from "../logger";
-import { sleep, remapTree, toConstantCase } from "./utils";
+import { sleep, remapTree, toConstantCase, reduceTree } from "./utils";
 import {
     EnvTransformFn,
     RefTransformFn,
@@ -381,12 +382,54 @@ export class ApplicationBuilder<Config, RemoteConfig> {
         return this;
     }
 
-    private async runCommand(commandName: string, argv: Record<string, any>): Promise<void> {
+    private parseCommandArgs<TArgs>(command: Command<TArgs>): TArgs | undefined {
+        if (!command.info.argv) {
+            return;
+        }
+        const baseArgs = command.info.argv!({
+            $arg: <O extends Options>(opts: O) => ({ ...opts, __type: "opt" } as InferredOptionType<O>),
+        }) as Record<string, Options>;
+
+        const isArgvType = (v: any) => "__type" in v && v.__type === "opt";
+        // in order to pass the options to yargs, we need to flatten the tree and generate a record of only yargs-compliant Options
+        const flattenedBaseArgs = reduceTree<Record<string, Options>>(baseArgs, isArgvType);
+
+        // makes sure to not have the same generated key accidentally being defined twice through nesting and naming
+        const camelKeys = Object.keys(flattenedBaseArgs).map(k => camelCase(k));
+        if (camelKeys.length !== uniq(camelKeys).length) {
+            throw new Error(
+                `Encounted doubly camelized keys. Make sure you are not naming keys in camelCase and nest them in the same parts, e.g. '{ fooBar: "..." }' and '{ foo: { bar: "..." } }'`,
+            );
+        }
+        // this actually registers the flattened argv-object to yargs and parses process.argv. throws if sth doesnt match
+        const convertedArgs = yargs(process.argv)
+            .options(flattenedBaseArgs)
+            .strict()
+            .parse();
+
+        /**
+         * for compliance w/ tArgs, we need to re-nest again with the result of convertedArgs.
+         * yArgs converts kebab-case to camelCase, so we can make a lookup afterwards.
+         * Due to the uniqueness of camel-cased keys (see check above), this op is deterministic
+         *
+         */
+        const reNestedTree = reduceTree(baseArgs, isArgvType, (_v, k) => {
+            const kCamel = camelCase(k.join("-"));
+            if (!convertedArgs[kCamel]) {
+                return { [k[k.length - 1]]: convertedArgs[kCamel] };
+            }
+            return set(k, convertedArgs[kCamel])({});
+        });
+        return (reNestedTree as any) as TArgs;
+    }
+
+    private async runCommand(commandName: string): Promise<void> {
         await Promise.all(this.preflightFns.map(fn => fn(this.buildResolveArgs(this.container))));
 
         const command = this.container.get<Command>(commandName);
+        const args = this.parseCommandArgs(command);
         await Promise.all(this.servicesWithLifecycleHandlers.map(svc => svc.preflight && svc.preflight()));
-        await command.execute({ logger: this.rootLogger, app: this.app, cliArgs: argv });
+        await command.execute({ logger: this.rootLogger, app: this.app, cliArgs: args });
         return this.shutdown("SVC_ENDED", 0);
     }
 
@@ -466,30 +509,22 @@ export class ApplicationBuilder<Config, RemoteConfig> {
         process.on("SIGTERM", () => this.handleShutdown({ reason: "SIGTERM" }));
     };
 
-    public run(customArgv?: Record<string, any>): void {
-        const argv = customArgv || defaultArgv;
-        const commandName = argv.c || argv.command || this.defaultCommandName;
+    public run(): void {
+        const argv = defaultArgv;
+        const commandName = (argv.c || argv.command || this.defaultCommandName) as string | undefined;
 
         if (!commandName || typeof commandName !== "string") {
-            const availableCommands = this.commandReferences.map(commandRef => {
-                const {
-                    info: { name, usage, argv: containerArgv },
-                } = this.container.get<Command>(commandRef);
-                return `${name} ${usage ? `: ${usage}` : ""}${
-                    containerArgv ? ` args: ${containerArgv.join(",")}` : ""
-                })`;
-            });
+            const availableCommands = this.commandReferences.join("\n");
             this.rootLogger.error(
-                `Did not receive a command argument or no defaultCommand was set. Available Commands:\n${availableCommands.join(
-                    "\n",
-                )}`,
+                `Did not receive a command argument or no defaultCommand was set. Available Commands:\n${availableCommands}`,
             );
             this.shutdown("NO_COMMAND", 1);
+            return;
         }
         if (this.appBuilderConfig.bindProcessSignals) {
             this.bindErrorSignals();
         }
-        this.runCommand(commandName, argv).catch(error => this.handleError({ error, reason: "INTERNAL_ERROR" }));
+        this.runCommand(commandName).catch(error => this.handleError({ error, reason: "INTERNAL_ERROR" }));
     }
 }
 /* eslint-enable no-underscore-dangle, promise/always-return */

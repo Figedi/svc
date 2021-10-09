@@ -4,6 +4,7 @@ import { ValidatorSpec, Spec } from "envalid";
 
 import { Logger } from "../../logger";
 import { Primitive } from "./base";
+import { ArgvParsingParams, AddOptionType } from "./args";
 
 export enum ErrorHandle {
     IGNORE = "IGNORE",
@@ -22,19 +23,19 @@ export interface AppBuilderConfig {
     loggerFactory: (loggerOptions?: any) => Logger;
 }
 
-export interface ExecuteCommandArgs {
+export interface ExecuteCommandArgs<TArgv extends Record<string, any>> {
     logger: Logger;
     app: AppConfig;
-    cliArgs: Record<string, any>;
+    cliArgs?: TArgv;
 }
 
-export interface Command {
+export interface Command<TArgv extends Record<string, any> = Record<string, any>> {
     info: {
         name: string;
         usage?: string;
-        argv?: string[];
+        argv?: (parsingParams: ArgvParsingParams) => AddOptionType<TArgv>;
     };
-    execute: (args: ExecuteCommandArgs) => void | Promise<void>;
+    execute: (args: ExecuteCommandArgs<TArgv>) => void | Promise<void>;
 }
 
 // =================== env stuff / config stuff.. todo: move to correct file

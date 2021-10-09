@@ -20,6 +20,30 @@ const walk = (tree: any, pathMemo: (string | number)[], ...transformers: TreeNod
     return tree;
 };
 
+export const reduceTree = <TOutput>(
+    tree: Record<string, any>,
+    predicate: (v: any) => boolean,
+    transformer: (v: any, k: string[]) => any = (v, k) => ({ [k.join("-")]: v }),
+    pathMemo: string[] = [],
+): TOutput => {
+    return Object.entries(tree).reduce((acc, [k, v]) => {
+        const keys = [...pathMemo, k];
+        const predFullfilled = predicate(v);
+        if (isPlainObject(v) && !predFullfilled) {
+            const subtree = reduceTree(v, predicate, transformer, keys) as any;
+            return { ...acc, ...subtree };
+        }
+        if (isArray(v)) {
+            // ignore arrays for now
+            return acc;
+        }
+        if (!predFullfilled) {
+            return acc;
+        }
+        return { ...acc, ...transformer(v, keys) };
+    }, []);
+};
+
 export const remapTree = (tree: any, ...transformers: TreeNodeTransformerConfig[]): any => {
     return walk(tree, [], ...transformers);
 };

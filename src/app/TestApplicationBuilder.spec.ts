@@ -1,14 +1,14 @@
 import { expect } from "chai";
 import { ApplicationBuilder } from "./ApplicationBuilder";
-import { ExecuteCommandArgs } from "./types/app";
+import { Command } from "./types/app";
 import { TestApplicationBuilder } from "./TestApplicationBuilder";
 
 describe("TestApplicationBuilder", () => {
-    const createDefaultCommand = (depThing: Record<string, any>) => ({
+    const createDefaultCommand = (depThing: Record<string, any>): Command => ({
         info: {
             name: "DefaultCommand",
         },
-        execute: async ({ logger }: ExecuteCommandArgs) => {
+        execute: async ({ logger }) => {
             logger.info({ config: depThing }, `Executing default-command.`);
         },
     });

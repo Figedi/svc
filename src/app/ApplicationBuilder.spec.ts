@@ -2,11 +2,15 @@ import { MeteringRecorder } from "@figedi/metering";
 import { expect } from "chai";
 
 import { ApplicationBuilder } from "./ApplicationBuilder";
-import { Provider, ExecuteCommandArgs, ErrorHandle } from "./types/app";
+import { Command, Provider, ErrorHandle } from "./types/app";
 import { createStubbedLogger } from "../logger";
 
 describe("ApplicationBuilder", function AppBuilderTest() {
     this.timeout(20000);
+
+    beforeEach(() => {
+        process.argv = ["--bar", "42", "--foo-baz", "21", "--foo-bar", "10.5"];
+    });
 
     describe("integration", function AppBuilderIntTest() {
         this.timeout(10000);
@@ -16,11 +20,24 @@ describe("ApplicationBuilder", function AppBuilderTest() {
             confValue: any,
             expectedConfValue: any,
             testDone: () => void,
-        ) => ({
+        ): Command<{ bar: number; fooBar: number; foo: { baz: number } }> => ({
             info: {
                 name: "DefaultCommand",
+                argv: ({ $arg }) => ({
+                    bar: $arg({ required: true, alias: "b", type: "number", description: "example" }),
+                    foo: {
+                        baz: $arg({ required: true, alias: "v", type: "number", description: "other example" }),
+                    },
+                    fooBar: $arg({ required: true, alias: "c", type: "number", description: "example" }),
+                }),
             },
-            execute: async ({ logger }: ExecuteCommandArgs) => {
+            execute: async ({ logger, cliArgs }) => {
+                expect(cliArgs?.bar).to.eq(42);
+                expect(typeof cliArgs?.bar).to.eq("number");
+                expect(cliArgs?.foo.baz).to.eq(21);
+                expect(typeof cliArgs?.foo.baz).to.eq("number");
+                expect(cliArgs?.fooBar).to.eq(10.5);
+                expect(typeof cliArgs?.fooBar).to.eq("number");
                 expect(confValue).to.deep.equal(expectedConfValue);
                 expect(await configProvider()).to.deep.equal({
                     dependency: "value",
