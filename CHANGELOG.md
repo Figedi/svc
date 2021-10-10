@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.6.16](https://github.com/figedi/svc/compare/v0.6.15...v0.6.16) (2021-10-10)
+
+
+### Bug Fixes
+
+* adds svc-internal cli-arg 'command' ([b1cc51c](https://github.com/figedi/svc/commit/b1cc51cfe452685a69f2b55dfc3dd4281111f3fd))
+
 ### [0.6.15](https://github.com/figedi/svc/compare/v0.6.14...v0.6.15) (2021-10-10)
 
 
