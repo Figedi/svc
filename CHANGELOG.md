@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.6.17](https://github.com/figedi/svc/compare/v0.6.16...v0.6.17) (2021-10-10)
+
+
+### Bug Fixes
+
+* fixes nested-tree args building ([9df1a27](https://github.com/figedi/svc/commit/9df1a27f7ebd5a69ccb549a9e9857244c53aac9c))
+
 ### [0.6.16](https://github.com/figedi/svc/compare/v0.6.15...v0.6.16) (2021-10-10)
 
 
