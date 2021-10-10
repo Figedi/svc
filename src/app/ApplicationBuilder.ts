@@ -2,10 +2,10 @@
 import { Container, interfaces } from "inversify";
 import pino from "pino";
 import pkgUp from "pkg-up";
-import { uniq, camelCase, once, merge } from "lodash";
+import { pick, kebabCase, uniq, camelCase, once, merge } from "lodash";
 import { set } from "lodash/fp";
 import { dirname } from "path";
-import yargs, { argv as defaultArgv, Options, InferredOptionType } from "yargs";
+import yargs, { argv as defaultArgv, Options, InferredOptionType, Arguments } from "yargs";
 import { readFileSync } from "fs";
 import { str, bool, num, host, port, url, json, ValidatorSpec, cleanEnv } from "envalid";
 
@@ -382,7 +382,7 @@ export class ApplicationBuilder<Config, RemoteConfig> {
         return this;
     }
 
-    private parseCommandArgs<TArgs>(command: Command<TArgs>): TArgs | undefined {
+    private parseCommandArgs<TArgs>(command: Command<TArgs>): (TArgs & { $raw: Arguments }) | undefined {
         if (!command.info.argv) {
             return;
         }
@@ -392,7 +392,9 @@ export class ApplicationBuilder<Config, RemoteConfig> {
 
         const isArgvType = (v: any) => "__type" in v && v.__type === "opt";
         // in order to pass the options to yargs, we need to flatten the tree and generate a record of only yargs-compliant Options
-        const flattenedBaseArgs = reduceTree<Record<string, Options>>(baseArgs, isArgvType);
+        const flattenedBaseArgs = reduceTree<Record<string, Options>>(baseArgs, isArgvType, (v, k) => ({
+            [k.map(kebabCase).join("-")]: { ...v, __path: k },
+        }));
 
         // makes sure to not have the same generated key accidentally being defined twice through nesting and naming
         const camelKeys = Object.keys(flattenedBaseArgs).map(k => camelCase(k));
@@ -401,9 +403,9 @@ export class ApplicationBuilder<Config, RemoteConfig> {
                 `Encounted doubly camelized keys. Make sure you are not naming keys in camelCase and nest them in the same parts, e.g. '{ fooBar: "..." }' and '{ foo: { bar: "..." } }'`,
             );
         }
-        if ("command" in flattenedBaseArgs) {
+        if (Object.keys(flattenedBaseArgs).some(k => ["$raw", "command"].includes(k))) {
             throw new Error(
-                `Encounted reserved key 'command' in command-args, please change the arg-name to something different`,
+                `Encounted reserved keyword in command-args, please change the arg-name to something different than '$raw' or 'command'`,
             );
         }
         // this actually registers the flattened argv-object to yargs and parses process.argv. throws if sth doesnt match
@@ -424,23 +426,23 @@ export class ApplicationBuilder<Config, RemoteConfig> {
          * Due to the uniqueness of camel-cased keys (see check above), this op is deterministic
          *
          */
-        const reNestedTree = reduceTree(baseArgs, isArgvType, (_v, k) => {
-            const kCamel = camelCase(k.join("-"));
-            if (!convertedArgs[kCamel]) {
-                return { [k[k.length - 1]]: convertedArgs[kCamel] };
-            }
-            return set(k, convertedArgs[kCamel])({});
-        });
-        return (reNestedTree as any) as TArgs;
+        const reNestedTree = Object.entries(flattenedBaseArgs).reduce(
+            (acc, [k, v]) => set((v as any).__path as string[], convertedArgs[k])(acc),
+            {},
+        );
+        return {
+            ...reNestedTree,
+            $raw: pick(convertedArgs, Object.keys(flattenedBaseArgs)),
+        } as TArgs & { $raw: Arguments };
     }
 
     private async runCommand(commandName: string): Promise<void> {
         await Promise.all(this.preflightFns.map(fn => fn(this.buildResolveArgs(this.container))));
 
         const command = this.container.get<Command>(commandName);
-        const args = this.parseCommandArgs(command);
+        const argv = this.parseCommandArgs(command);
         await Promise.all(this.servicesWithLifecycleHandlers.map(svc => svc.preflight && svc.preflight()));
-        await command.execute({ logger: this.rootLogger, app: this.app, cliArgs: args });
+        await command.execute({ logger: this.rootLogger, app: this.app, argv });
         return this.shutdown("SVC_ENDED", 0);
     }
 

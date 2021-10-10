@@ -1,6 +1,7 @@
 import pino from "pino";
 import { Container } from "inversify";
 import { ValidatorSpec, Spec } from "envalid";
+import { Arguments } from "yargs";
 
 import { Logger } from "../../logger";
 import { Primitive } from "./base";
@@ -26,7 +27,7 @@ export interface AppBuilderConfig {
 export interface ExecuteCommandArgs<TArgv extends Record<string, any>> {
     logger: Logger;
     app: AppConfig;
-    cliArgs?: TArgv;
+    argv?: TArgv & { $raw: Arguments };
 }
 
 export interface ICommandInfo<TArgv extends Record<string, any> = Record<string, any>> {

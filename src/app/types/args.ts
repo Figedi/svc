@@ -1,7 +1,7 @@
 import { InferredOptionType, Options } from "yargs";
 
 export type ArgvParsingParams = {
-    $arg: <O extends Options>(opts: O) => InferredOptionType<O>;
+    $arg: <O extends Options = Options>(opts: O) => InferredOptionType<O>;
 };
 
 export type AddOptionType<T> = T extends Options

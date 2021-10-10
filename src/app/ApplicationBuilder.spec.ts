@@ -9,7 +9,7 @@ describe("ApplicationBuilder", function AppBuilderTest() {
     this.timeout(20000);
 
     beforeEach(() => {
-        process.argv = ["--bar", "42", "--foo-baz", "21", "--foo-bar", "10.5"];
+        process.argv = ["--bar", "42", "--foo-bar", "10.5", "--foo-baz", "21"];
     });
 
     describe("integration", function AppBuilderIntTest() {
@@ -20,24 +20,28 @@ describe("ApplicationBuilder", function AppBuilderTest() {
             confValue: any,
             expectedConfValue: any,
             testDone: () => void,
-        ): Command<{ bar: number; fooBar: number; foo: { baz: number } }> => ({
+        ): Command<{ bar: number; fooBar: number; foo: { default: boolean; undef?: string; baz: number } }> => ({
             info: {
                 name: "DefaultCommand",
                 argv: ({ $arg }) => ({
                     bar: $arg({ required: true, alias: "b", type: "number", description: "example" }),
                     foo: {
                         baz: $arg({ required: true, alias: "v", type: "number", description: "other example" }),
+                        default: $arg({ default: false, type: "boolean", description: "default example" }),
+                        undef: $arg({ type: "string", description: "undef example" }),
                     },
                     fooBar: $arg({ required: true, alias: "c", type: "number", description: "example" }),
                 }),
             },
-            execute: async ({ logger, cliArgs }) => {
-                expect(cliArgs?.bar).to.eq(42);
-                expect(typeof cliArgs?.bar).to.eq("number");
-                expect(cliArgs?.foo.baz).to.eq(21);
-                expect(typeof cliArgs?.foo.baz).to.eq("number");
-                expect(cliArgs?.fooBar).to.eq(10.5);
-                expect(typeof cliArgs?.fooBar).to.eq("number");
+            execute: async ({ logger, argv }) => {
+                expect(argv?.bar).to.eq(42);
+                expect(typeof argv?.bar).to.eq("number");
+                expect(argv?.foo.baz).to.eq(21);
+                expect(argv?.foo.default).to.eq(false);
+                expect(argv?.foo.undef).to.eq(undefined);
+                expect(typeof argv?.foo.baz).to.eq("number");
+                expect(argv?.fooBar).to.eq(10.5);
+                expect(typeof argv?.fooBar).to.eq("number");
                 expect(confValue).to.deep.equal(expectedConfValue);
                 expect(await configProvider()).to.deep.equal({
                     dependency: "value",
