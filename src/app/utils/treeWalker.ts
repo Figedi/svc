@@ -1,4 +1,4 @@
-import { set, isArray, isPlainObject, mapValues } from "lodash";
+import { kebabCase, set, isArray, isPlainObject, mapValues } from "lodash";
 
 export interface TreeNodeTransformerConfig {
     predicate: (refValue: any, path: (string | number)[]) => boolean;
@@ -23,7 +23,7 @@ const walk = (tree: any, pathMemo: (string | number)[], ...transformers: TreeNod
 export const reduceTree = <TOutput>(
     tree: Record<string, any>,
     predicate: (v: any) => boolean,
-    transformer: (v: any, k: string[]) => any = (v, k) => ({ [k.join("-")]: v }),
+    transformer: (v: any, k: string[]) => any = (v, k) => ({ [k.map(kebabCase).join("-")]: v }),
     pathMemo: string[] = [],
 ): TOutput => {
     return Object.entries(tree).reduce((acc, [k, v]) => {

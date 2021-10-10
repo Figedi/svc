@@ -29,12 +29,15 @@ export interface ExecuteCommandArgs<TArgv extends Record<string, any>> {
     cliArgs?: TArgv;
 }
 
+export interface ICommandInfo<TArgv extends Record<string, any> = Record<string, any>> {
+    name: string;
+    usage?: string;
+    argv?: (parsingParams: ArgvParsingParams) => AddOptionType<TArgv>;
+}
+
 export interface Command<TArgv extends Record<string, any> = Record<string, any>> {
-    info: {
-        name: string;
-        usage?: string;
-        argv?: (parsingParams: ArgvParsingParams) => AddOptionType<TArgv>;
-    };
+    info: ICommandInfo<TArgv>;
+
     execute: (args: ExecuteCommandArgs<TArgv>) => void | Promise<void>;
 }
 
