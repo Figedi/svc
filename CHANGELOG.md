@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.6.15](https://github.com/figedi/svc/compare/v0.6.14...v0.6.15) (2021-10-10)
+
+
+### Bug Fixes
+
+* kebab-cases nested args ([285cb24](https://github.com/figedi/svc/commit/285cb241726a05f9b8ebaf3499965cf3158ad978))
+
 ### [0.6.14](https://github.com/figedi/svc/compare/v0.6.13...v0.6.14) (2021-10-09)
 
 
