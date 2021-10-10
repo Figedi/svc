@@ -401,8 +401,19 @@ export class ApplicationBuilder<Config, RemoteConfig> {
                 `Encounted doubly camelized keys. Make sure you are not naming keys in camelCase and nest them in the same parts, e.g. '{ fooBar: "..." }' and '{ foo: { bar: "..." } }'`,
             );
         }
+        if ("command" in flattenedBaseArgs) {
+            throw new Error(
+                `Encounted reserved key 'command' in command-args, please change the arg-name to something different`,
+            );
+        }
         // this actually registers the flattened argv-object to yargs and parses process.argv. throws if sth doesnt match
         const convertedArgs = yargs(process.argv)
+            .option("command", {
+                type: "string",
+                required: !this.defaultCommandName,
+                choices: this.commandReferences,
+                description: "Name of the command to execute, required if no default-command has been registered",
+            })
             .options(flattenedBaseArgs)
             .strict()
             .parse();
