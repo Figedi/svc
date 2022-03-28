@@ -173,5 +173,5 @@ export interface ResolveRegisterFnArgs<Config> extends BaseRegisterFnArgs<Config
 }
 
 export interface Provider<T> extends Function {
-    (...args: any[]): ((...args: any[]) => Promise<T>) | Promise<T>;
+    (...args: any[]): ((...args1: any[]) => Promise<T>) | Promise<T>;
 }

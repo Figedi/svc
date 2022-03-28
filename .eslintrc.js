@@ -1,12 +1,8 @@
 module.exports = {
-    plugins: ["@typescript-eslint", "eslint-comments", "promise"],
     extends: [
+        "airbnb-base",
         "airbnb-typescript/base",
-        "plugin:@typescript-eslint/recommended",
-        "plugin:eslint-comments/recommended",
-        "plugin:promise/recommended",
         "prettier",
-        "prettier/@typescript-eslint",
     ],
     env: {
         node: true,
@@ -22,13 +18,12 @@ module.exports = {
         "no-prototype-builtins": "off",
         // https://basarat.gitbooks.io/typescript/docs/tips/defaultIsBad.html
         "import/prefer-default-export": "off",
-        "import/no-default-export": "error",
         // Too restrictive: https://github.com/yannickcr/eslint-plugin-react/blob/master/docs/rules/destructuring-assignment.md
         "react/destructuring-assignment": "off",
         // No jsx extension: https://github.com/facebook/create-react-app/issues/87#issuecomment-234627904
         "react/jsx-filename-extension": "off",
         // Use function hoisting to improve code readability
-        "no-use-before-define": ["error", { functions: false, classes: true, variables: true }],
+        "no-use-before-define": "off",
         "class-methods-use-this": "off",
         "consistent-return": "off",
         "global-require": "off",

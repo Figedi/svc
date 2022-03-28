@@ -245,10 +245,7 @@ describe("RemoteConfig", function RemoteConfigTest() {
                 testApp,
                 async ({ remoteConfig }) => {
                     // subscribes to the stream until it finds the changed projection, which might come eventually
-                    const streamedValue = await remoteConfig.streamedValue
-                        .stream()
-                        .pipe(take(1))
-                        .toPromise();
+                    const streamedValue = await remoteConfig.streamedValue.stream().pipe(take(1)).toPromise();
 
                     expect(streamedValue).to.eq("streamed-debug");
                 },
@@ -260,9 +257,8 @@ describe("RemoteConfig", function RemoteConfigTest() {
 
     describe("reactions", () => {
         it("executes a reaction-handler whenever the reactsOn-predicate yields truthy results", async () => {
-            const logLevelReactsOnFn: ReactsOnFn<ConfigRepository> = (_, newVal) => {
-                return newVal.resources.configs.service["common.json"].logLevel === "info";
-            };
+            const logLevelReactsOnFn: ReactsOnFn<ConfigRepository> = (_, newVal) =>
+                newVal.resources.configs.service["common.json"].logLevel === "info";
             const reactsOnSpy = spy(logLevelReactsOnFn);
             const { testApp } = createTestApplicationBuilder(kms, reactsOnSpy);
             const scope = nock(REMOTE_CONFIG_ENDPOINT)

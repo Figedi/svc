@@ -13,11 +13,12 @@ describe("RemoteConfigHandler", () => {
             sleep(1000, false).then(() => {
                 throw new Error("timeout in RemoteConfigHandler-specs");
             }),
-            new Promise(resolve => {
+            // eslint-disable-next-line no-async-promise-executor
+            new Promise(async resolve => {
                 const handler = new RemoteConfigHandler(parent$.asObservable(), reactsOnSpy, async value =>
                     resolve(value),
                 );
-                return handler.preflight();
+                resolve(await handler.preflight());
             }),
         ]);
         parent$.next(10); // does not trigger the predicate

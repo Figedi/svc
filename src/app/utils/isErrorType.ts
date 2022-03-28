@@ -10,6 +10,4 @@ interface ErrorConstructor<T> extends Function {
 export const isErrorType = <CheckedErrorType>(
     error: any,
     checkedErrorClass: ErrorConstructor<CheckedErrorType>,
-): error is CheckedErrorType => {
-    return error.constructor.name === checkedErrorClass.name;
-};
+): error is CheckedErrorType => error.constructor.name === checkedErrorClass.name;

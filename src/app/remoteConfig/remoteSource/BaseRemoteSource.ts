@@ -52,18 +52,14 @@ export abstract class BaseRemoteSource<Schema> {
         return remapTreeAsync(
             config,
             (_, path) => String(path[path.length - 1]).includes(".enc.json"),
-            async (value, path) => {
-                return {
-                    /**
-                     * any decrypted value is by convention not to be named ".enc.json"
-                     * This convention is validated in the schema of a config-repository
-                     */
-                    path: path.map(pathPart => {
-                        return String(pathPart).replace(".enc.json", ".json");
-                    }),
-                    value: await this.decryptorClient.decrypt(value),
-                };
-            },
+            async (value, path) => ({
+                /**
+                 * any decrypted value is by convention not to be named ".enc.json"
+                 * This convention is validated in the schema of a config-repository
+                 */
+                path: path.map(pathPart => String(pathPart).replace(".enc.json", ".json")),
+                value: await this.decryptorClient.decrypt(value),
+            }),
         );
     }
 
@@ -214,9 +210,7 @@ export abstract class BaseRemoteSource<Schema> {
         this.trySetRequiredMetrics();
         this.stopped = false;
         this.validator = createValidator();
-        this.rootSchema = await this.validator.compile(this.schema, {
-            schemaDirs: [require("@figedi/svc-config").SCHEMA_BASE_DIR],
-        });
+        this.rootSchema = await this.validator.compile(this.schema, [require("@figedi/svc-config").SCHEMA_BASE_DIR]);
     }
 
     public async get(): Promise<Schema> {
@@ -224,9 +218,7 @@ export abstract class BaseRemoteSource<Schema> {
             throw new Error(`Please call preflight() first before retrieving values`);
         }
 
-        return this.stream()
-            .pipe(take(1))
-            .toPromise();
+        return this.stream().pipe(take(1)).toPromise();
     }
 
     public stream(): Observable<Schema> {

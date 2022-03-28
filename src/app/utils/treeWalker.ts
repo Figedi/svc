@@ -25,8 +25,8 @@ export const reduceTree = <TOutput>(
     predicate: (v: any) => boolean,
     transformer: (v: any, k: string[]) => any = (v, k) => ({ [k.map(kebabCase).join("-")]: v }),
     pathMemo: string[] = [],
-): TOutput => {
-    return Object.entries(tree).reduce((acc, [k, v]) => {
+): TOutput =>
+    Object.entries(tree).reduce((acc, [k, v]) => {
         const keys = [...pathMemo, k];
         const predFullfilled = predicate(v);
         if (isPlainObject(v) && !predFullfilled) {
@@ -42,11 +42,9 @@ export const reduceTree = <TOutput>(
         }
         return { ...acc, ...transformer(v, keys) };
     }, []);
-};
 
-export const remapTree = (tree: any, ...transformers: TreeNodeTransformerConfig[]): any => {
-    return walk(tree, [], ...transformers);
-};
+export const remapTree = (tree: any, ...transformers: TreeNodeTransformerConfig[]): any =>
+    walk(tree, [], ...transformers);
 
 export const remapTreeAsync = async (
     tree: any,

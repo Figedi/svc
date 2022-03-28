@@ -81,12 +81,10 @@ describe("ApplicationBuilder", function AppBuilderTest() {
                 .registerDependency("meteringRecorder", () => new MeteringRecorder())
                 .registerDependency("dependencyA", () => ({ dependency: "value" }))
                 .registerProvider("providerA", () => async () => ({ providerA: "value" }))
-                .registerProvider("providerB", ({ resolve }) => async () => {
-                    return {
-                        ...resolve<Record<string, string>>("dependencyA"),
-                        providerB: await resolve<Provider<any>>("providerA")(),
-                    };
-                })
+                .registerProvider("providerB", ({ resolve }) => async () => ({
+                    ...resolve<Record<string, string>>("dependencyA"),
+                    providerB: await resolve<Provider<any>>("providerA")(),
+                }))
                 .onError((_, e) => {
                     done(e);
                     return ErrorHandle.IGNORE;

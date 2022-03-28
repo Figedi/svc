@@ -1,7 +1,7 @@
-/* eslint-disable no-underscore-dangle, promise/always-return */
+/* eslint-disable no-underscore-dangle */
 import { Container, interfaces } from "inversify";
 import pino from "pino";
-import pkgUp from "pkg-up";
+import { pkgUpSync } from "pkg-up";
 import { pick, kebabCase, uniq, camelCase, once, merge } from "lodash";
 import { set } from "lodash/fp";
 import { dirname } from "path";
@@ -135,7 +135,7 @@ export class ApplicationBuilder<Config, RemoteConfig> {
     };
 
     private constructor(private appBuilderConfig: AppBuilderConfig) {
-        const packageJsonPath = pkgUp.sync();
+        const packageJsonPath = pkgUpSync();
         if (!packageJsonPath) {
             this.shutdown("NO_PACKAGE_JSON", 1, true).catch(() => process.exit(1));
             return;
@@ -149,10 +149,7 @@ export class ApplicationBuilder<Config, RemoteConfig> {
             base: {
                 ...appBuilderConfig.rootLoggerProperties,
                 env: envName,
-                service: packageJson.name
-                    .split("/")
-                    .slice(1)
-                    .join("/"),
+                service: packageJson.name.split("/").slice(1).join("/"),
             },
         });
 
@@ -208,7 +205,7 @@ export class ApplicationBuilder<Config, RemoteConfig> {
         );
         this.remoteConfig = remoteConfig as any; // ts-cannot infer the projected type here
 
-        return (this as any) as ApplicationBuilder<Config, ProjectedRemoteConfig>;
+        return this as any as ApplicationBuilder<Config, ProjectedRemoteConfig>;
     }
 
     /**
@@ -276,7 +273,7 @@ export class ApplicationBuilder<Config, RemoteConfig> {
             },
         );
 
-        return (this as any) as ApplicationBuilder<C, RemoteConfig>;
+        return this as any as ApplicationBuilder<C, RemoteConfig>;
     }
 
     /**
@@ -427,7 +424,7 @@ export class ApplicationBuilder<Config, RemoteConfig> {
          *
          */
         const reNestedTree = Object.entries(flattenedBaseArgs).reduce(
-            (acc, [k, v]) => set((v as any).__path as string[], convertedArgs[k])(acc),
+            (acc, [k, v]) => set((v as any).__path as string[], convertedArgs[k as keyof typeof convertedArgs])(acc),
             {},
         );
         return {
@@ -446,36 +443,32 @@ export class ApplicationBuilder<Config, RemoteConfig> {
         return this.shutdown("SVC_ENDED", 0);
     }
 
-    private shutdown = once(
-        async (reason: string, exitCode = 1, forceExit = false): Promise<void> => {
-            if (!this.servicesWithLifecycleHandlers.length) {
-                return;
-            }
-            if (forceExit) {
-                process.exit(exitCode);
-            }
-            try {
-                await Promise.race([
-                    sleep(this.appBuilderConfig.shutdownGracePeriodSeconds, true).then(() => {
-                        this.rootLogger.error({ reason }, "Timeout while graceful-shutdown, will exit now");
-                        process.exit(1);
-                    }),
-                    Promise.all(this.servicesWithLifecycleHandlers.map(svc => svc.shutdown && svc.shutdown())).then(
-                        () => {
-                            this.rootLogger.info(
-                                { reason },
-                                `Successfully shut down all services. Reason ${reason}. Will exit now`,
-                            );
-                            process.exit(exitCode);
-                        },
-                    ),
-                ]);
-            } catch (e) {
-                this.rootLogger.info({ reason, error: e }, `Uncaught error while shutting-down: ${e.message}`);
-                process.exit(1);
-            }
-        },
-    );
+    private shutdown = once(async (reason: string, exitCode = 1, forceExit = false): Promise<void> => {
+        if (!this.servicesWithLifecycleHandlers.length) {
+            return;
+        }
+        if (forceExit) {
+            process.exit(exitCode);
+        }
+        try {
+            await Promise.race([
+                sleep(this.appBuilderConfig.shutdownGracePeriodSeconds, true).then(() => {
+                    this.rootLogger.error({ reason }, "Timeout while graceful-shutdown, will exit now");
+                    process.exit(1);
+                }),
+                Promise.all(this.servicesWithLifecycleHandlers.map(svc => svc.shutdown && svc.shutdown())).then(() => {
+                    this.rootLogger.info(
+                        { reason },
+                        `Successfully shut down all services. Reason ${reason}. Will exit now`,
+                    );
+                    process.exit(exitCode);
+                }),
+            ]);
+        } catch (e) {
+            this.rootLogger.info({ reason, error: e }, `Uncaught error while shutting-down: ${e.message}`);
+            process.exit(1);
+        }
+    });
 
     private handleError = async (args: { error?: Error; reason: string }): Promise<void> => {
         if (!this.errorHandlers.length) {
@@ -523,7 +516,7 @@ export class ApplicationBuilder<Config, RemoteConfig> {
     };
 
     public run(): void {
-        const argv = defaultArgv;
+        const argv: any = defaultArgv;
         const commandName = (argv.c || argv.command || this.defaultCommandName) as string | undefined;
 
         if (!commandName || typeof commandName !== "string") {
@@ -540,4 +533,4 @@ export class ApplicationBuilder<Config, RemoteConfig> {
         this.runCommand(commandName).catch(error => this.handleError({ error, reason: "INTERNAL_ERROR" }));
     }
 }
-/* eslint-enable no-underscore-dangle, promise/always-return */
+/* eslint-enable no-underscore-dangle */
