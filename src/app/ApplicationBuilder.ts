@@ -1,7 +1,7 @@
 /* eslint-disable no-underscore-dangle */
 import { Container, interfaces } from "inversify";
 import pino from "pino";
-import { pkgUpSync } from "pkg-up";
+import pkgUp from "pkg-up";
 import { pick, kebabCase, uniq, camelCase, once, merge } from "lodash";
 import { set } from "lodash/fp";
 import { dirname } from "path";
@@ -135,7 +135,7 @@ export class ApplicationBuilder<Config, RemoteConfig> {
     };
 
     private constructor(private appBuilderConfig: AppBuilderConfig) {
-        const packageJsonPath = pkgUpSync();
+        const packageJsonPath = pkgUp.sync();
         if (!packageJsonPath) {
             this.shutdown("NO_PACKAGE_JSON", 1, true).catch(() => process.exit(1));
             return;
