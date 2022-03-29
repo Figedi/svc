@@ -414,7 +414,7 @@ export class ApplicationBuilder<Config, RemoteConfig> {
                 description: "Name of the command to execute, required if no default-command has been registered",
             })
             .options(flattenedBaseArgs)
-            .strict()
+            .strictOptions()
             .parse();
 
         /**
