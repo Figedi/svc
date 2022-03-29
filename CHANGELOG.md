@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.6.20](https://github.com/figedi/svc/compare/v0.6.19...v0.6.20) (2022-03-29)
+
+
+### Bug Fixes
+
+* only makes passed cli options strict, not positional args ([6c58d96](https://github.com/figedi/svc/commit/6c58d966570d3dd13310c5f31eae026a36e28c60))
+
 ### [0.6.19](https://github.com/figedi/svc/compare/v0.6.18...v0.6.19) (2022-03-28)
 
 ### [0.6.18](https://github.com/figedi/svc/compare/v0.6.17...v0.6.18) (2022-03-28)
