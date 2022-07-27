@@ -1,4 +1,4 @@
-import { getVersion, ConfigRepository, getRootSchema } from "@figedi/svc-config";
+import { getVersion, ConfigRepository, getRootSchema, SCHEMA_BASE_DIR } from "@figedi/svc-config";
 import { SopsClient } from "@figedi/sops";
 import { KmsKeyDecryptor } from "@figedi/sops/kms";
 import { setupStubbedKms } from "@figedi/sops/dist/kms/shared.specFiles/kmsStubs";
@@ -49,6 +49,7 @@ const createTestApplicationBuilder = (
             source: new PollingRemoteSource({
                 logger,
                 schema: getRootSchema(),
+                schemaBaseDir: SCHEMA_BASE_DIR,
                 serviceName: config.serviceName,
                 fallback: initialValue,
                 jsonDecryptor: new SopsClient(KmsKeyDecryptor.createWithKmsClient(kmsClient)),

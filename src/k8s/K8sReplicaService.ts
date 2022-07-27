@@ -1,4 +1,4 @@
-import { KubeConfig, CoreV1Api } from "@kubernetes/client-node";
+import type { KubeConfig, CoreV1Api } from "@kubernetes/client-node";
 import { hostname } from "os";
 import { IReplicaService } from "../app/remoteConfig";
 import { Logger } from "../logger";
@@ -10,6 +10,7 @@ interface K8sReplicaServiceOpts {
 
 export class K8sReplicaService implements IReplicaService {
     private k8sApi?: CoreV1Api;
+    private kubeconfig?: KubeConfig;
     public projectId?: string;
     public serviceAccountPath?: string;
 
@@ -40,14 +41,24 @@ export class K8sReplicaService implements IReplicaService {
     private init() {
         this.serviceAccountPath = this.inferServiceAccountPath();
         this.projectId = this.inferProjectId();
-        const kc = new KubeConfig();
-        kc.loadFromDefault();
-        if (kc.getCurrentCluster()) {
-            this.k8sApi = kc.makeApiClient(CoreV1Api);
+    }
+
+    private async getModule() {
+        if (this.kubeconfig) {
+            return;
+        }
+        // eslint-disable-next-line import/no-extraneous-dependencies
+        const mod = await import("@kubernetes/client-node");
+
+        this.kubeconfig = new mod.KubeConfig();
+        this.kubeconfig.loadFromDefault();
+        if (this.kubeconfig.getCurrentCluster()) {
+            this.k8sApi = this.kubeconfig.makeApiClient(mod.CoreV1Api);
         }
     }
 
-    public get runsInCloud(): boolean {
+    public async runsInK8s(): Promise<boolean> {
+        await this.getModule();
         return !!this.k8sApi;
     }
 
@@ -55,6 +66,7 @@ export class K8sReplicaService implements IReplicaService {
         areNeighboursOlder?: boolean;
         areNeighboursUnhealthy?: boolean;
     }> {
+        await this.getModule();
         // todo: return either types
         if (!this.k8sApi) {
             return {};

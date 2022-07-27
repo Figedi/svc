@@ -515,7 +515,7 @@ export class ApplicationBuilder<Config, RemoteConfig> {
         process.on("SIGTERM", () => this.handleShutdown({ reason: "SIGTERM" }));
     };
 
-    public run(): void {
+    public async run(): Promise<void> {
         const argv: any = defaultArgv;
         const commandName = (argv.c || argv.command || this.defaultCommandName) as string | undefined;
 
@@ -530,7 +530,17 @@ export class ApplicationBuilder<Config, RemoteConfig> {
         if (this.appBuilderConfig.bindProcessSignals) {
             this.bindErrorSignals();
         }
-        this.runCommand(commandName).catch(error => this.handleError({ error, reason: "INTERNAL_ERROR" }));
+        try {
+            await this.runCommand(commandName);
+        } catch (error: any) {
+            await this.handleError({ error, reason: "INTERNAL_ERROR" }).catch(innerError => {
+                this.rootLogger.error(
+                    { error: innerError },
+                    `Unexpected error in global-error-handling, shutting down`,
+                );
+                process.exit(1);
+            });
+        }
     }
 }
 /* eslint-enable no-underscore-dangle */

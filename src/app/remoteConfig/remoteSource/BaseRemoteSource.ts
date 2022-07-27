@@ -1,7 +1,7 @@
 /* eslint-disable max-classes-per-file */
 import { MeteringRecorder } from "@figedi/metering";
 import { createValidator, SchemaValidationError, SchemaValidator, JSONSchema } from "@figedi/typecop";
-import { Subject, Observable } from "rxjs";
+import { Subject, Observable, lastValueFrom } from "rxjs";
 import { take } from "rxjs/operators";
 import { parse } from "semver";
 import stringify from "fast-json-stable-stringify";
@@ -27,6 +27,7 @@ export abstract class BaseRemoteSource<Schema> {
         private baseVersion: string,
         private schema: JSONSchema<Schema>,
         private decryptorClient: IJsonDecryptor,
+        private schemaBaseDir: string,
         private getMetricsRecorder?: () => MeteringRecorder,
         private fallback?: Schema,
     ) {
@@ -210,7 +211,8 @@ export abstract class BaseRemoteSource<Schema> {
         this.trySetRequiredMetrics();
         this.stopped = false;
         this.validator = createValidator();
-        this.rootSchema = await this.validator.compile(this.schema, [require("@figedi/svc-config").SCHEMA_BASE_DIR]);
+
+        this.rootSchema = await this.validator.compile(this.schema, [this.schemaBaseDir]);
     }
 
     public async get(): Promise<Schema> {
@@ -218,7 +220,7 @@ export abstract class BaseRemoteSource<Schema> {
             throw new Error(`Please call preflight() first before retrieving values`);
         }
 
-        return this.stream().pipe(take(1)).toPromise();
+        return lastValueFrom(this.stream().pipe(take(1)));
     }
 
     public stream(): Observable<Schema> {

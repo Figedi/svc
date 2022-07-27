@@ -1,5 +1,5 @@
 export interface IReplicaService {
-    runsInCloud: boolean;
+    runsInK8s(): Promise<boolean>;
 
     getNeighbourReplicaStatus(): Promise<{
         areNeighboursOlder?: boolean;

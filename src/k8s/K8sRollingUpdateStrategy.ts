@@ -26,7 +26,7 @@ export class K8sRollingUpdateStrategy implements IReloadingStrategy, ServiceWith
     }
 
     private async tryRestart(): Promise<void> {
-        if (!this.replicaService.runsInCloud) {
+        if (!(await this.replicaService.runsInK8s())) {
             this.logger.warn(`Received a restart-signal while not being in k8s, exiting...`);
             return;
         }

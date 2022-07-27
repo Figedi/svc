@@ -1,4 +1,4 @@
-import { Observable, Subscription } from "rxjs";
+import { lastValueFrom, Observable, Subscription } from "rxjs";
 import { map, take, tap } from "rxjs/operators";
 import { ServiceWithLifecycleHandlers } from "../../types/service";
 
@@ -15,7 +15,7 @@ export class OnceRemoteConfigValue<ParentSchema, Schema = ParentSchema> implemen
     private init(): void {
         this.output$ = this.parentStream.pipe(
             take(1),
-            map(config => (this.projection ? this.projection(config) : ((config as any) as Schema))),
+            map(config => (this.projection ? this.projection(config) : (config as any as Schema))),
             tap(value => {
                 this.lastValue = value;
             }),
@@ -36,6 +36,6 @@ export class OnceRemoteConfigValue<ParentSchema, Schema = ParentSchema> implemen
         if (this.lastValue) {
             return this.lastValue;
         }
-        return this.output$.toPromise();
+        return lastValueFrom(this.output$);
     }
 }

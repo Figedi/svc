@@ -35,6 +35,7 @@ export interface PollingOpts {
 export interface PollingRemoteSourceConfig<Schema> {
     logger: Logger;
     schema: JSONSchema<Schema>;
+    schemaBaseDir: string;
     fallback?: Schema;
     serviceName: string;
     poll: RequiredPollingOpts & PollingOpts;
@@ -77,6 +78,7 @@ export class PollingRemoteSource<Schema> extends BaseRemoteSource<Schema> implem
             config.poll.version,
             config.schema,
             config.jsonDecryptor,
+            config.schemaBaseDir,
             config.getMetricsRecorder,
             config.fallback,
         );
@@ -90,18 +92,8 @@ export class PollingRemoteSource<Schema> extends BaseRemoteSource<Schema> implem
         const { endpoint, prefix, version, acceptedRange } = this.config.poll;
         const replacedVersion = {
             [AcceptedVersionRange.none]: (v: string) => v,
-            [AcceptedVersionRange.patch]: (v: string) =>
-                String(v)
-                    .split(".")
-                    .slice(0, -1)
-                    .concat("x")
-                    .join("."),
-            [AcceptedVersionRange.minor]: (v: string) =>
-                String(v)
-                    .split(".")
-                    .slice(0, -2)
-                    .concat(["x", "x"])
-                    .join("."),
+            [AcceptedVersionRange.patch]: (v: string) => String(v).split(".").slice(0, -1).concat("x").join("."),
+            [AcceptedVersionRange.minor]: (v: string) => String(v).split(".").slice(0, -2).concat(["x", "x"]).join("."),
             [AcceptedVersionRange.latest]: () => "latest",
         }[acceptedRange!](version);
         return resolve(endpoint, `${prefix}/v${replacedVersion}`);

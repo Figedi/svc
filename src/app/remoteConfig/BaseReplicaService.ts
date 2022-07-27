@@ -3,7 +3,9 @@ import { IReplicaService } from "./types";
 import { Logger } from "../../logger";
 
 export class BaseReplicaService implements IReplicaService {
-    public runsInCloud = false;
+    public async runsInK8s(): Promise<boolean> {
+        return false;
+    }
 
     public async getNeighbourReplicaStatus(): Promise<{
         areNeighboursOlder?: boolean;

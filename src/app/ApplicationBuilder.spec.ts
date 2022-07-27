@@ -78,7 +78,7 @@ describe("ApplicationBuilder", function AppBuilderTest() {
                     serviceName: "example-svc",
                     environmentName: "dev",
                 }))
-                .registerDependency("meteringRecorder", () => new MeteringRecorder())
+                .registerDependency("meteringRecorder", () => new MeteringRecorder("svc_test"))
                 .registerDependency("dependencyA", () => ({ dependency: "value" }))
                 .registerProvider("providerA", () => async () => ({ providerA: "value" }))
                 .registerProvider("providerB", ({ resolve }) => async () => ({
