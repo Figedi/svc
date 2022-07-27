@@ -1,4 +1,5 @@
 import { set, cloneDeep } from "lodash";
+// eslint-disable-next-line import/no-extraneous-dependencies
 import { getFallback, getVersion, SecretsConfiguration } from "@figedi/svc-config";
 // eslint-disable-next-line import/no-extraneous-dependencies
 import { encryptJson } from "@figedi/sops/test";

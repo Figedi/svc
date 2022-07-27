@@ -5,8 +5,8 @@ import { setupStubbedKms } from "@figedi/sops/dist/kms/shared.specFiles/kmsStubs
 import nock from "nock";
 import { expect } from "chai";
 import { assert, spy } from "sinon";
-import { v1 } from "@google-cloud/kms";
 import { take } from "rxjs/operators";
+import type { v1 } from "@google-cloud/kms";
 
 import {
     createStubbedConfigValues,

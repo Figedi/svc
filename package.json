@@ -32,7 +32,7 @@
   "devDependencies": {
     "@figedi/sops": "^1.1.0",
     "@figedi/svc-config": "0.0.3",
-    "@google-cloud/kms": "^3.0.1",
+    "@google-cloud/kms": "2.11.1",
     "@kubernetes/client-node": "^0.17.0",
     "@types/chai": "^4.3.1",
     "@types/google-cloud__kms": "^1.5.4",
@@ -68,7 +68,6 @@
     "@figedi/metering": "^1.3.0",
     "@figedi/typecop": "^1.2.2",
     "@types/lodash": "^4.14.182",
-    "@types/pino": "^7.0.5",
     "@types/semver": "^7.3.10",
     "axios": "^0.27.2",
     "envalid": "^7.3.1",
