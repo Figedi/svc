@@ -1,12 +1,11 @@
 import { getVersion, ConfigRepository, getRootSchema, SCHEMA_BASE_DIR } from "@figedi/svc-config";
 import { SopsClient } from "@figedi/sops";
-import { KmsKeyDecryptor } from "@figedi/sops/kms";
-import { setupStubbedKms } from "@figedi/sops/dist/kms/shared.specFiles/kmsStubs";
+import { KmsKeyDecryptor, setupStubbedKms } from "@figedi/sops/kms";
 import nock from "nock";
 import { expect } from "chai";
 import { assert, spy } from "sinon";
 import { take } from "rxjs/operators";
-import type { v1 } from "@google-cloud/kms";
+import type { KeyManagementServiceClient } from "@google-cloud/kms";
 
 import {
     createStubbedConfigValues,
@@ -33,7 +32,7 @@ const PROJECTIONS = {
 const defaultReactsOnFn: ReactsOnFn<ConfigRepository> = () => false;
 
 const createTestApplicationBuilder = (
-    kmsClient: v1.KeyManagementServiceClient,
+    kmsClient: KeyManagementServiceClient,
     reactsOn = defaultReactsOnFn,
     initialValue?: ConfigRepository,
     pollingIntervalMs = 5000,
@@ -81,7 +80,7 @@ describe("RemoteConfig", function RemoteConfigTest() {
     this.timeout(20000);
     let key: Buffer;
     let iv: Buffer;
-    let kms: v1.KeyManagementServiceClient;
+    let kms: KeyManagementServiceClient;
     let responses: StubbedResponses;
     let values: StubbedConfigValues;
 

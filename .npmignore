@@ -18,6 +18,7 @@ bin
 resources
 lint-staged.config.js
 ./**/*.spec.*
+.github
 # typescript specific ignorable files
 src
 resources

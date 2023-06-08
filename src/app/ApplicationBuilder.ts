@@ -228,7 +228,7 @@ export class ApplicationBuilder<Config, RemoteConfig> {
      *
      *
      */
-    public setEnv<C>(envFn: EnvFn<C>): ApplicationBuilder<C, RemoteConfig> {
+    public setEnv<C extends Record<string, any>>(envFn: EnvFn<C>): ApplicationBuilder<C, RemoteConfig> {
         this.config = remapTree(
             envFn({ $env, app: this.app }),
             {
@@ -379,7 +379,9 @@ export class ApplicationBuilder<Config, RemoteConfig> {
         return this;
     }
 
-    private parseCommandArgs<TArgs>(command: Command<TArgs>): (TArgs & { $raw: Arguments }) | undefined {
+    private parseCommandArgs<TArgs extends Record<string, any>>(
+        command: Command<TArgs>,
+    ): (TArgs & { $raw: Arguments }) | undefined {
         if (!command.info.argv) {
             return;
         }

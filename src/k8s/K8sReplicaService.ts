@@ -71,10 +71,11 @@ export class K8sReplicaService implements IReplicaService {
         if (!this.k8sApi) {
             return {};
         }
-        const podList = await this.k8sApi.listNamespacedPod(this.opts.namespace);
+        const podList = await this.k8sApi.listNamespacedPod({ namespace: this.opts.namespace });
 
         const selfName = hostname();
-        const [ownPod] = podList.body.items.filter(item => item.metadata && item.metadata.name === selfName);
+
+        const [ownPod] = podList.items.filter(item => item.metadata && item.metadata.name === selfName);
         if (!ownPod) {
             return {};
         }
@@ -83,7 +84,7 @@ export class K8sReplicaService implements IReplicaService {
             this.logger.warn(`Did not find label '${this.opts.commonLabel}' in pod-description, refusing to restart`);
             return {};
         }
-        const neighbouringPods = podList.body.items.filter(
+        const neighbouringPods = podList.items.filter(
             item =>
                 item.metadata?.name !== selfName &&
                 item.metadata?.labels?.[this.opts.commonLabel] === ownCommonLabelValue &&
