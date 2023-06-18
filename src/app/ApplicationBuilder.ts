@@ -4,7 +4,7 @@ import pino from "pino";
 import appRootPath from "app-root-path";
 import { pick, kebabCase, uniq, camelCase, once, merge } from "lodash";
 import { set } from "lodash/fp";
-import { join } from "path";
+// import { join } from "path";
 import yargs, { argv as defaultArgv, Options, InferredOptionType, Arguments } from "yargs";
 import { readFileSync } from "fs";
 import { str, bool, num, host, port, url, json, ValidatorSpec, cleanEnv } from "envalid";
@@ -88,7 +88,6 @@ const defaultAppBuilderConfig: AppBuilderConfig = {
     shutdownGracePeriodSeconds: 10,
     bindProcessSignals: true,
     exitAfterRun: true,
-    inferFromPackageJson: true,
     rootLoggerProperties: {},
     loggerFactory: createLogger,
 };
@@ -162,19 +161,13 @@ export class ApplicationBuilder<Config, RemoteConfig> {
 
     public reconfigure(config: Partial<AppBuilderConfig>): ApplicationBuilder<Config, RemoteConfig> {
         this.appBuilderConfig = merge({}, defaultAppBuilderConfig, config) as AppBuilderConfig;
-        let packageJson: Record<string, any> = {};
-        if (this.appBuilderConfig.inferFromPackageJson) {
-            // eslint-disable-next-line import/no-dynamic-require
-            packageJson = require(join(appRootPath.toString(), "/package.json"));
-        }
         const envName = process.env.ENVIRONMENT_NAME || "[unknown]";
-
         this.rootLogger = this.appBuilderConfig.loggerFactory({
             level: process.env.LOG_LEVEL || "info",
             base: {
                 ...this.appBuilderConfig.rootLoggerProperties,
                 env: envName,
-                service: packageJson.name?.split("/").slice(1).join("/"),
+                service: process.env.npm_package_name?.split("/").slice(1).join("/"),
             },
         });
 
@@ -182,7 +175,7 @@ export class ApplicationBuilder<Config, RemoteConfig> {
             envName,
             startedAt: new Date(),
             rootPath: appRootPath.toString(),
-            version: packageJson.version,
+            version: process.env.npm_package_version,
         };
         return this;
     }

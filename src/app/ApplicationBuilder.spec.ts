@@ -129,7 +129,5 @@ describe("ApplicationBuilder", function AppBuilderTest() {
             assert.calledOnce(globalPreflightFn);
             assert.calledOnce(commandShutdownFn);
         });
-
-        // @todo inferFromPackageJson=false + test when its set to true
     });
 });

@@ -22,7 +22,6 @@ export interface AppBuilderConfig {
     bindProcessSignals: boolean;
     rootLoggerProperties: Record<string, any>;
     exitAfterRun: boolean;
-    inferFromPackageJson: boolean;
     loggerFactory: (loggerOptions?: any) => Logger;
 }
 
