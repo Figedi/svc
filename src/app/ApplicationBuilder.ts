@@ -1,10 +1,10 @@
 /* eslint-disable no-underscore-dangle */
 import { Container, interfaces } from "inversify";
 import pino from "pino";
-import pkgUp from "pkg-up";
+import appRootPath from "app-root-path";
 import { pick, kebabCase, uniq, camelCase, once, merge } from "lodash";
 import { set } from "lodash/fp";
-import { dirname } from "path";
+import { join } from "path";
 import yargs, { argv as defaultArgv, Options, InferredOptionType, Arguments } from "yargs";
 import { readFileSync } from "fs";
 import { str, bool, num, host, port, url, json, ValidatorSpec, cleanEnv } from "envalid";
@@ -87,6 +87,8 @@ const $env: EnvalidTransformer = {
 const defaultAppBuilderConfig: AppBuilderConfig = {
     shutdownGracePeriodSeconds: 10,
     bindProcessSignals: true,
+    exitAfterRun: true,
+    inferFromPackageJson: true,
     rootLoggerProperties: {},
     loggerFactory: createLogger,
 };
@@ -121,6 +123,7 @@ export class ApplicationBuilder<Config, RemoteConfig> {
     private shutdownHandlers: ShutdownHandlerFn<Config, RemoteConfig>[] = [];
     private preflightFns: AppPreflightFn<Config, RemoteConfig>[] = [];
     private commandReferences: string[] = [];
+    private appBuilderConfig!: AppBuilderConfig;
 
     public container = new Container();
     public config: Config = {} as Config;
@@ -128,38 +131,11 @@ export class ApplicationBuilder<Config, RemoteConfig> {
     public servicesWithLifecycleHandlers: ServiceWithLifecycleHandlers[] = [];
 
     static create = <RC = never, C = never>(
-        appBuilderConfig: Partial<AppBuilderConfig> = defaultAppBuilderConfig,
-    ): ApplicationBuilder<C, RC> => {
-        const config = merge({}, defaultAppBuilderConfig, appBuilderConfig);
-        return new ApplicationBuilder<C, RC>(config as AppBuilderConfig);
-    };
+        config: Partial<AppBuilderConfig> = defaultAppBuilderConfig,
+    ): ApplicationBuilder<C, RC> => new ApplicationBuilder<C, RC>(config);
 
-    private constructor(private appBuilderConfig: AppBuilderConfig) {
-        const packageJsonPath = pkgUp.sync();
-        if (!packageJsonPath) {
-            this.shutdown("NO_PACKAGE_JSON", 1, true).catch(() => process.exit(1));
-            return;
-        }
-        // eslint-disable-next-line import/no-dynamic-require
-        const packageJson = require(packageJsonPath);
-        const envName = process.env.ENVIRONMENT_NAME || "unknown";
-        this.rootLogger = appBuilderConfig.loggerFactory({
-            level: process.env.LOG_LEVEL || "info",
-            prettyPrint: envName === "LOCAL",
-            base: {
-                ...appBuilderConfig.rootLoggerProperties,
-                env: envName,
-                service: packageJson.name.split("/").slice(1).join("/"),
-            },
-        });
-
-        this.app = {
-            packageJson,
-            envName,
-            startedAt: new Date(),
-            rootPath: dirname(packageJsonPath),
-            version: packageJson.version,
-        };
+    private constructor(config: Partial<AppBuilderConfig>) {
+        this.reconfigure(config);
     }
 
     private buildBaseResolveArgs = (): BaseRegisterFnArgs<Config> => ({
@@ -183,6 +159,33 @@ export class ApplicationBuilder<Config, RemoteConfig> {
         remoteConfig: this.remoteConfig as any,
         ...this.buildBaseResolveArgs(),
     });
+
+    public reconfigure(config: Partial<AppBuilderConfig>): ApplicationBuilder<Config, RemoteConfig> {
+        this.appBuilderConfig = merge({}, defaultAppBuilderConfig, config) as AppBuilderConfig;
+        let packageJson: Record<string, any> = {};
+        if (this.appBuilderConfig.inferFromPackageJson) {
+            // eslint-disable-next-line import/no-dynamic-require
+            packageJson = require(join(appRootPath.toString(), "/package.json"));
+        }
+        const envName = process.env.ENVIRONMENT_NAME || "[unknown]";
+
+        this.rootLogger = this.appBuilderConfig.loggerFactory({
+            level: process.env.LOG_LEVEL || "info",
+            base: {
+                ...this.appBuilderConfig.rootLoggerProperties,
+                env: envName,
+                service: packageJson.name?.split("/").slice(1).join("/"),
+            },
+        });
+
+        this.app = {
+            envName,
+            startedAt: new Date(),
+            rootPath: appRootPath.toString(),
+            version: packageJson.version,
+        };
+        return this;
+    }
 
     /**
      * Sets up a remote-config handler. The setup consists of 3 different components:
@@ -380,7 +383,7 @@ export class ApplicationBuilder<Config, RemoteConfig> {
     }
 
     private parseCommandArgs<TArgs extends Record<string, any>>(
-        command: Command<TArgs>,
+        command: Command<TArgs, any>,
     ): (TArgs & { $raw: Arguments }) | undefined {
         if (!command.info.argv) {
             return;
@@ -435,40 +438,53 @@ export class ApplicationBuilder<Config, RemoteConfig> {
         } as TArgs & { $raw: Arguments };
     }
 
-    private async runCommand(commandName: string): Promise<void> {
+    private async runCommand<TResult>(commandName: string): Promise<TResult> {
         await Promise.all(this.preflightFns.map(fn => fn(this.buildResolveArgs(this.container))));
-
-        const command = this.container.get<Command>(commandName);
+        const command = this.container.get<Command<any, TResult>>(commandName);
         const argv = this.parseCommandArgs(command);
+
         await Promise.all(this.servicesWithLifecycleHandlers.map(svc => svc.preflight && svc.preflight()));
-        await command.execute({ logger: this.rootLogger, app: this.app, argv });
-        return this.shutdown("SVC_ENDED", 0);
+        const commandResult = await command.execute({ logger: this.rootLogger, app: this.app, argv });
+
+        await this.shutdown("SVC_ENDED", 0);
+        return commandResult;
     }
 
     private shutdown = once(async (reason: string, exitCode = 1, forceExit = false): Promise<void> => {
         if (!this.servicesWithLifecycleHandlers.length) {
             return;
         }
-        if (forceExit) {
+        if (forceExit && this.appBuilderConfig.exitAfterRun) {
             process.exit(exitCode);
         }
         try {
             await Promise.race([
                 sleep(this.appBuilderConfig.shutdownGracePeriodSeconds, true).then(() => {
-                    this.rootLogger.error({ reason }, "Timeout while graceful-shutdown, will exit now");
-                    process.exit(1);
+                    const error = new Error("Timeout while graceful-shutdown, will exit now");
+                    this.rootLogger.error({ reason }, error.message);
+                    if (this.appBuilderConfig.exitAfterRun) {
+                        process.exit(1);
+                    } else {
+                        throw error;
+                    }
                 }),
-                Promise.all(this.servicesWithLifecycleHandlers.map(svc => svc.shutdown && svc.shutdown())).then(() => {
-                    this.rootLogger.info(
-                        { reason },
-                        `Successfully shut down all services. Reason ${reason}. Will exit now`,
-                    );
-                    process.exit(exitCode);
-                }),
+                Promise.all(this.servicesWithLifecycleHandlers.map(svc => svc.shutdown && svc.shutdown())),
             ]);
+            if (this.appBuilderConfig.exitAfterRun) {
+                this.rootLogger.info(
+                    { reason },
+                    `Successfully shut down all services. Reason ${reason}. Will exit now`,
+                );
+
+                process.exit(exitCode);
+            }
         } catch (e) {
             this.rootLogger.info({ reason, error: e }, `Uncaught error while shutting-down: ${e.message}`);
-            process.exit(1);
+            if (this.appBuilderConfig.exitAfterRun) {
+                process.exit(1);
+            } else {
+                throw e;
+            }
         }
     });
 
@@ -517,32 +533,39 @@ export class ApplicationBuilder<Config, RemoteConfig> {
         process.on("SIGTERM", () => this.handleShutdown({ reason: "SIGTERM" }));
     };
 
-    public async run(): Promise<void> {
+    public async run<TResult = any>(command?: string): Promise<TResult> {
         const argv: any = defaultArgv;
-        const commandName = (argv.c || argv.command || this.defaultCommandName) as string | undefined;
-
+        const commandName = (command || argv.command || this.defaultCommandName) as string | undefined;
         if (!commandName || typeof commandName !== "string") {
             const availableCommands = this.commandReferences.join("\n");
-            this.rootLogger.error(
+            const error = new Error(
                 `Did not receive a command argument or no defaultCommand was set. Available Commands:\n${availableCommands}`,
             );
-            this.shutdown("NO_COMMAND", 1);
-            return;
+            this.rootLogger.error(error.message);
+            if (this.appBuilderConfig.exitAfterRun) {
+                this.shutdown("NO_COMMAND", 1, true);
+                return null!; // never reached, shutdown force exits
+            }
+            throw error;
         }
         if (this.appBuilderConfig.bindProcessSignals) {
             this.bindErrorSignals();
         }
         try {
-            await this.runCommand(commandName);
+            return await this.runCommand<TResult>(commandName);
         } catch (error: any) {
-            await this.handleError({ error, reason: "INTERNAL_ERROR" }).catch(innerError => {
-                this.rootLogger.error(
-                    { error: innerError },
-                    `Unexpected error in global-error-handling, shutting down`,
-                );
-                process.exit(1);
-            });
+            if (this.appBuilderConfig.exitAfterRun) {
+                await this.handleError({ error, reason: "INTERNAL_ERROR" }).catch(innerError => {
+                    // in case of unexpected errors, panic
+                    this.rootLogger.error(
+                        { error: innerError },
+                        `Unexpected error in global-error-handling, shutting down`,
+                    );
+                    process.exit(1);
+                });
+            }
+            // either when graceful exit is set or no exit-after-run, throw the error
+            throw error;
         }
     }
 }
-/* eslint-enable no-underscore-dangle */

@@ -1,5 +1,6 @@
 import { MeteringRecorder } from "@figedi/metering";
 import { expect } from "chai";
+import { assert, stub } from "sinon";
 
 import { ApplicationBuilder } from "./ApplicationBuilder";
 import { Command, Provider, ErrorHandle } from "./types/app";
@@ -14,7 +15,6 @@ describe("ApplicationBuilder", function AppBuilderTest() {
 
     describe("integration", function AppBuilderIntTest() {
         this.timeout(10000);
-
         const createDefaultCommand = (
             configProvider: Provider<any>,
             confValue: any,
@@ -61,7 +61,10 @@ describe("ApplicationBuilder", function AppBuilderTest() {
             process.env.A_DEEP_STR = "example_string";
             process.env.A_DEEP_BOOL = "0";
             process.env.A_DEEP_JSON = '{ "stringified": "json" }';
-            ApplicationBuilder.create({ loggerFactory: createStubbedLogger })
+            ApplicationBuilder.create({
+                bindProcessSignals: false,
+                loggerFactory: createStubbedLogger,
+            })
                 .setEnv(({ $env }) => ({
                     a: {
                         deep: {
@@ -94,5 +97,39 @@ describe("ApplicationBuilder", function AppBuilderTest() {
                 )
                 .run();
         });
+
+        it("returns a commands execute result", async () => {
+            const commandPreflightFn = stub();
+            const globalPreflightFn = stub();
+            const commandShutdownFn = stub();
+
+            const result = await ApplicationBuilder.create({
+                loggerFactory: createStubbedLogger,
+                bindProcessSignals: false,
+                exitAfterRun: false,
+            })
+                .registerPreflightFn(async () => globalPreflightFn())
+
+                .registerDefaultCommand("start-intermediate", () => ({
+                    info: {
+                        name: "DefaultCommand",
+                    },
+                    preflight() {
+                        commandPreflightFn();
+                    },
+                    shutdown() {
+                        commandShutdownFn();
+                    },
+                    execute: async () => ({ universe: 42 }),
+                }))
+                .run();
+
+            expect(result).to.deep.eq({ universe: 42 });
+            assert.calledOnce(commandPreflightFn);
+            assert.calledOnce(globalPreflightFn);
+            assert.calledOnce(commandShutdownFn);
+        });
+
+        // @todo inferFromPackageJson=false + test when its set to true
     });
 });

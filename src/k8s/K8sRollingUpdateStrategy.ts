@@ -43,6 +43,7 @@ export class K8sRollingUpdateStrategy implements IReloadingStrategy, ServiceWith
         } else {
             await sleep(Math.random() * K8sRollingUpdateStrategy.RESTART_SLEEP_TIME_RANGE_MS);
             this.logger.info(`Restarting service due to config-changes NOW`);
+
             process.exit(0);
         }
     }

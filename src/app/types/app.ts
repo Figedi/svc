@@ -21,6 +21,8 @@ export interface AppBuilderConfig {
     shutdownGracePeriodSeconds: number;
     bindProcessSignals: boolean;
     rootLoggerProperties: Record<string, any>;
+    exitAfterRun: boolean;
+    inferFromPackageJson: boolean;
     loggerFactory: (loggerOptions?: any) => Logger;
 }
 
@@ -36,10 +38,10 @@ export interface ICommandInfo<TArgv extends Record<string, any> = Record<string,
     argv?: (parsingParams: ArgvParsingParams) => AddOptionType<TArgv>;
 }
 
-export interface Command<TArgv extends Record<string, any> = Record<string, any>> {
+export interface Command<TArgv extends Record<string, any> = Record<string, any>, TResult extends any = any> {
     info: ICommandInfo<TArgv>;
 
-    execute: (args: ExecuteCommandArgs<TArgv>) => void | Promise<void>;
+    execute: (args: ExecuteCommandArgs<TArgv>) => TResult | Promise<TResult>;
 }
 
 // =================== env stuff / config stuff.. todo: move to correct file
@@ -157,8 +159,7 @@ export type AddTransformConfigToPrimitives<T> = T extends Primitive | Date
 export type AppConfig = {
     startedAt: Date;
     rootPath: string;
-    packageJson: Record<string, any>;
-    version: string;
+    version?: string;
     envName: string;
 };
 
