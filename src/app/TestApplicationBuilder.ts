@@ -1,7 +1,7 @@
-import { Container } from "inversify";
-import { ApplicationBuilder, RegisterFnArgs } from "./ApplicationBuilder";
-import { Logger } from "../logger";
-import { UnpackTransformConfigTypes } from "./types";
+import type { Container } from "inversify";
+import type { ApplicationBuilder, RegisterFnArgs } from "./ApplicationBuilder";
+import type { Logger } from "../logger";
+import type { UnpackTransformConfigTypes } from "./types";
 
 export type Stub<T> = {
     [k in keyof T]: any;
@@ -52,7 +52,7 @@ export class TestApplicationBuilder<Config, RemoteConfig> {
         const newConfig = overwriteConfigFn(this.getAppBuilderProp<UnpackTransformConfigTypes<Config>>("config"));
 
         this.appBuilder = this.appBuilder.setEnv(() => <any>newConfig);
-        return (this as any) as TestApplicationBuilder<C, RemoteConfig>;
+        return this as any as TestApplicationBuilder<C, RemoteConfig>;
     }
 
     public getStub<StubType>(stubName: string): StubType {

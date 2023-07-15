@@ -1,17 +1,9 @@
 /* eslint-disable no-underscore-dangle */
-import { Container, interfaces } from "inversify";
-import pino from "pino";
-import appRootPath from "app-root-path";
-import { pick, kebabCase, uniq, camelCase, once, merge } from "lodash";
-import { set } from "lodash/fp";
-// import { join } from "path";
-import yargs, { argv as defaultArgv, Options, InferredOptionType, Arguments } from "yargs";
-import { readFileSync } from "fs";
-import { str, bool, num, host, port, url, json, ValidatorSpec, cleanEnv } from "envalid";
+import type { interfaces } from "inversify";
+import type { Options, InferredOptionType, Arguments } from "yargs";
+import type { ValidatorSpec } from "envalid";
 
-import { createLogger } from "../logger";
-import { sleep, remapTree, toConstantCase, reduceTree } from "./utils";
-import {
+import type {
     EnvTransformFn,
     RefTransformFn,
     AppBuilderConfig,
@@ -20,19 +12,35 @@ import {
     EnvFn,
     EnvTransformConfig,
     RefTransformConfig,
-    serviceWithPreflightOrShutdown,
     Provider,
-    ErrorHandle,
-    ShutdownHandle,
     Command,
     ResolveRegisterFnArgs,
     BaseRegisterFnArgs,
     FileTransformFn,
     FileTransformConfig,
     EnvalidTransformer,
+    AnyTransformStrict,
 } from "./types";
+import type { RemoteConfigFn, UnpackRemoteConfigTypes } from "./remoteConfig";
 
-import { RemoteConfigFn, setRemoteConfig, UnpackRemoteConfigTypes } from "./remoteConfig";
+import appRootPath from "app-root-path";
+import { Container } from "inversify";
+import { pick, kebabCase, uniq, camelCase, once, merge } from "lodash";
+import { set } from "lodash/fp";
+import yargs, { argv as defaultArgv } from "yargs";
+import { readFileSync } from "node:fs";
+import { str, bool, num, host, port, url, json, cleanEnv } from "envalid";
+import { createLogger, Logger } from "../logger";
+import {
+    sleep,
+    remapTree,
+    toConstantCase,
+    reduceTree,
+    serviceWithPreflightOrShutdown,
+    TreeNodeTransformerConfig,
+} from "./utils";
+import { ShutdownHandle, ErrorHandle } from "./types";
+import { DeepMerge } from "./types/base";
 
 export type AppPreflightFn<C, RC> = (container: RegisterFnArgs<C, RC>) => Promise<any> | any;
 
@@ -115,7 +123,7 @@ export type GetAppConfig<T> = T extends ApplicationBuilder<infer V, never>
  *
  */
 export class ApplicationBuilder<Config, RemoteConfig> {
-    private rootLogger!: pino.Logger;
+    private rootLogger!: Logger;
     private defaultCommandName?: string;
     private app!: AppConfig;
     private errorHandlers: ErrorHandlerFn<Config, RemoteConfig>[] = [];
@@ -133,8 +141,8 @@ export class ApplicationBuilder<Config, RemoteConfig> {
         config: Partial<AppBuilderConfig> = defaultAppBuilderConfig,
     ): ApplicationBuilder<C, RC> => new ApplicationBuilder<C, RC>(config);
 
-    private constructor(config: Partial<AppBuilderConfig>) {
-        this.reconfigure(config);
+    private constructor(appConfig: Partial<AppBuilderConfig>) {
+        this.reconfigure({ appConfig });
     }
 
     private buildBaseResolveArgs = (): BaseRegisterFnArgs<Config> => ({
@@ -159,8 +167,23 @@ export class ApplicationBuilder<Config, RemoteConfig> {
         ...this.buildBaseResolveArgs(),
     });
 
-    public reconfigure(config: Partial<AppBuilderConfig>): ApplicationBuilder<Config, RemoteConfig> {
-        this.appBuilderConfig = merge({}, defaultAppBuilderConfig, config) as AppBuilderConfig;
+    public reconfigure<TConf extends Record<string, any>>(opts: {
+        appConfig?: Partial<AppBuilderConfig>;
+        env?: EnvFn<TConf>;
+    }): ApplicationBuilder<DeepMerge<Config, TConf, AnyTransformStrict<any>>, RemoteConfig> {
+        if (opts.appConfig) {
+            this.appBuilderConfig = merge(
+                {},
+                defaultAppBuilderConfig,
+                this.appBuilderConfig,
+                opts.appConfig,
+            ) as AppBuilderConfig;
+        }
+        if (opts.env) {
+            const overwrittenConfig = remapTree(opts.env({ $env, app: this.app }), ...this.configTransformers);
+            this.config = merge({}, this.config, overwrittenConfig);
+        }
+
         const envName = process.env.ENVIRONMENT_NAME || "[unknown]";
         this.rootLogger = this.appBuilderConfig.loggerFactory({
             level: process.env.LOG_LEVEL || "info",
@@ -177,7 +200,7 @@ export class ApplicationBuilder<Config, RemoteConfig> {
             rootPath: appRootPath.toString(),
             version: process.env.npm_package_version,
         };
-        return this;
+        return this as any;
     }
 
     /**
@@ -194,15 +217,63 @@ export class ApplicationBuilder<Config, RemoteConfig> {
     public setRemoteConfig<ProjectedRemoteConfig>(
         envFn: RemoteConfigFn<RemoteConfig, Config, ProjectedRemoteConfig>,
     ): ApplicationBuilder<Config, ProjectedRemoteConfig> {
-        const remoteConfig = setRemoteConfig(
-            envFn,
-            this.buildBaseResolveArgs,
-            this.servicesWithLifecycleHandlers.push.bind(this.servicesWithLifecycleHandlers),
-        );
-        this.remoteConfig = remoteConfig as any; // ts-cannot infer the projected type here
+        const importPromise = import("./remoteConfig")
+            .then(mod => {
+                const remoteConfig = mod.setRemoteConfig(
+                    envFn,
+                    this.buildBaseResolveArgs,
+                    this.servicesWithLifecycleHandlers.push.bind(this.servicesWithLifecycleHandlers),
+                );
+                this.remoteConfig = remoteConfig as any; // ts-cannot infer the projected type here
+            })
+            .catch((e: any) => this.handleError({ error: e, reason: "INTERNAL_ERROR" }));
+        this.preflightFns.unshift(() => importPromise);
 
         return this as any as ApplicationBuilder<Config, ProjectedRemoteConfig>;
     }
+
+    private configTransformers: TreeNodeTransformerConfig[] = [
+        {
+            predicate: value => !!value && value.__type === REF_TYPES.FILE,
+            transform: async ({ filePath, fileTransformFn }: FileTransformConfig) => {
+                const resolvedPath = typeof filePath === "function" ? filePath({ app: this.app }) : filePath;
+                const fileContent = readFileSync(resolvedPath);
+                if (!fileTransformFn) {
+                    return fileContent;
+                }
+
+                return fileTransformFn(fileContent);
+            },
+        },
+        {
+            predicate: value => !!value && value.__type === REF_TYPES.ENV,
+            transform: ({ transformFn, defaultValue }: EnvTransformConfig, path) => {
+                const envLookupKey = toConstantCase(path);
+                const envValue = process.env[envLookupKey] || defaultValue;
+                if (typeof envValue === "undefined") {
+                    throw new Error(
+                        `Required env-variable ${envLookupKey} not found, please check your service-config`,
+                    );
+                }
+                return transformFn ? transformFn(envValue) : envValue;
+            },
+        },
+        {
+            predicate: value => !!value && typeof value === "object" && "_parse" in value,
+            transform: (refValue: ValidatorSpec<any>, path) => {
+                const envLookupKey = toConstantCase(path);
+                const parsedEnv = cleanEnv(process.env, { [envLookupKey]: refValue });
+                return parsedEnv[envLookupKey];
+            },
+        },
+        {
+            predicate: value => !!value && value.__type === REF_TYPES.REF,
+            transform: ({ referenceValue, refTransformFn }: RefTransformConfig) => {
+                const envValue = process.env[referenceValue];
+                return refTransformFn ? refTransformFn(envValue) : envValue;
+            },
+        },
+    ];
 
     /**
      * Sets a service's required config based on envs. The callback of this method
@@ -225,49 +296,8 @@ export class ApplicationBuilder<Config, RemoteConfig> {
      *
      */
     public setEnv<C extends Record<string, any>>(envFn: EnvFn<C>): ApplicationBuilder<C, RemoteConfig> {
-        this.config = remapTree(
-            envFn({ $env, app: this.app }),
-            {
-                predicate: value => !!value && value.__type === REF_TYPES.FILE,
-                transform: ({ filePath, fileTransformFn }: FileTransformConfig) => {
-                    const resolvedPath = typeof filePath === "function" ? filePath({ app: this.app }) : filePath;
-                    const fileContent = readFileSync(resolvedPath);
-                    if (!fileTransformFn) {
-                        return fileContent;
-                    }
-
-                    return fileTransformFn(fileContent);
-                },
-            },
-            {
-                predicate: value => !!value && value.__type === REF_TYPES.ENV,
-                transform: ({ transformFn, defaultValue }: EnvTransformConfig, path) => {
-                    const envLookupKey = toConstantCase(path);
-                    const envValue = process.env[envLookupKey] || defaultValue;
-                    if (typeof envValue === "undefined") {
-                        throw new Error(
-                            `Required env-variable ${envLookupKey} not found, please check your service-config`,
-                        );
-                    }
-                    return transformFn ? transformFn(envValue) : envValue;
-                },
-            },
-            {
-                predicate: value => !!value && typeof value === "object" && "_parse" in value,
-                transform: (refValue: ValidatorSpec<any>, path) => {
-                    const envLookupKey = toConstantCase(path);
-                    const parsedEnv = cleanEnv(process.env, { [envLookupKey]: refValue });
-                    return parsedEnv[envLookupKey];
-                },
-            },
-            {
-                predicate: value => !!value && value.__type === REF_TYPES.REF,
-                transform: ({ referenceValue, refTransformFn }: RefTransformConfig) => {
-                    const envValue = process.env[referenceValue];
-                    return refTransformFn ? refTransformFn(envValue) : envValue;
-                },
-            },
-        );
+        // @todo somehow allow async transformers -> file -> async readFile
+        this.config = remapTree(envFn({ $env, app: this.app }), ...this.configTransformers);
 
         return this as any as ApplicationBuilder<C, RemoteConfig>;
     }
@@ -307,6 +337,7 @@ export class ApplicationBuilder<Config, RemoteConfig> {
     ): ApplicationBuilder<Config, RemoteConfig> {
         this.container
             .bind(name)
+
             .toDynamicValue(context => {
                 try {
                     const inst = registerFn(this.buildResolveArgs(context.container));

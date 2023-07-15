@@ -81,6 +81,16 @@ describe("ApplicationBuilder", function AppBuilderTest() {
                     serviceName: "example-svc",
                     environmentName: "dev",
                 }))
+                .reconfigure({
+                    env: ({ $env }) => ({
+                        a: {
+                            deep: {
+                                bool: $env.str({ default: "42" }),
+                            },
+                        },
+                        serviceName: 42,
+                    }),
+                })
                 .registerDependency("meteringRecorder", () => new MeteringRecorder("svc_test"))
                 .registerDependency("dependencyA", () => ({ dependency: "value" }))
                 .registerProvider("providerA", () => async () => ({ providerA: "value" }))
@@ -93,7 +103,7 @@ describe("ApplicationBuilder", function AppBuilderTest() {
                     return ErrorHandle.IGNORE;
                 })
                 .registerDefaultCommand("start", ({ resolve, config }) =>
-                    createDefaultCommand(resolve("providerB"), config.a.deep.fileVal.parsedContent, { foo: 42 }, done),
+                    createDefaultCommand(resolve("providerB"), config.a.deep.bool, config.serviceName, done),
                 )
                 .run();
         });

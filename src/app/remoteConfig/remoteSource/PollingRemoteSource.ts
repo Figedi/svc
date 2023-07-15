@@ -1,7 +1,7 @@
 import { MeteringRecorder } from "@figedi/metering";
 import { JSONSchema } from "@figedi/typecop";
 import axios, { AxiosResponse } from "axios";
-import { resolve } from "url";
+import { resolve } from "node:url";
 
 import { sleep } from "../../utils";
 import { BaseRemoteSource } from "./BaseRemoteSource";

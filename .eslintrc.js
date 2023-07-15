@@ -1,9 +1,5 @@
 module.exports = {
-    extends: [
-        "airbnb-base",
-        "airbnb-typescript/base",
-        "prettier",
-    ],
+    extends: ["airbnb-base", "airbnb-typescript/base", "prettier"],
     env: {
         node: true,
         browser: false,
@@ -43,5 +39,8 @@ module.exports = {
         "@typescript-eslint/no-explicit-any": "off",
         "@typescript-eslint/no-var-requires": "off",
         "max-classes-per-file": "off",
+        "import/order": "off",
+        "no-restricted-syntax": "off",
+        "no-await-in-loop": "off",
     },
 };

@@ -1,11 +1,10 @@
-import pino from "pino";
-import { Container } from "inversify";
-import { ValidatorSpec, Spec } from "envalid";
-import { Arguments } from "yargs";
-
-import { Logger } from "../../logger";
-import { Primitive } from "./base";
-import { ArgvParsingParams, AddOptionType } from "./args";
+import type { Logger as PinoLogger } from "pino";
+import type { Container } from "inversify";
+import type { ValidatorSpec, Spec } from "envalid";
+import type { Arguments } from "yargs";
+import type { Logger } from "../../logger";
+import type { Primitive } from "./base";
+import type { ArgvParsingParams, AddOptionType } from "./args";
 
 export enum ErrorHandle {
     IGNORE = "IGNORE",
@@ -56,7 +55,7 @@ export type EnvFn<Config extends Record<string, any>> = (
 
 export type FileTransformFn = <ReturnValue = Buffer>(
     filePath: string | ((env: Omit<DependencyArgs, "$env">) => string),
-    fileTransformFn?: (value: Buffer) => ReturnValue,
+    fileTransformFn?: (value: Buffer) => ReturnValue | Promise<ReturnValue>,
 ) => FileTransformConfig<ReturnValue>;
 
 export type EnvalidTransformer = {
@@ -97,7 +96,7 @@ export interface RefTransformConfig<ReturnValue = string> {
 export interface FileTransformConfig<ReturnValue = Buffer> {
     __type: 3;
     filePath: string | ((env: Omit<DependencyArgs, "$env">) => string);
-    fileTransformFn?: (fileBuffer: Buffer) => ReturnValue;
+    fileTransformFn?: (fileBuffer: Buffer) => ReturnValue | Promise<ReturnValue>;
 }
 
 export type UnpackEnvConfig<T> = T extends EnvTransformConfig<infer V> ? V : never;
@@ -106,7 +105,7 @@ export type UnpackFileConfig<T> = T extends FileTransformConfig<infer V> ? V : n
 export type UnpackValidatorSpec<T> = T extends ValidatorSpec<infer V> ? V : never;
 
 // this type tries to unpack the types one by one. If none of the configs match, it returns never
-export type Unpacked<T> = UnpackRefConfig<T> | UnpackEnvConfig<T> | UnpackFileConfig<T> | UnpackValidatorSpec<T>;
+type Unpacked<T> = UnpackRefConfig<T> | UnpackEnvConfig<T> | UnpackFileConfig<T> | UnpackValidatorSpec<T>;
 
 /**
  * Here's the deal: This automatic  inferrence of generics in ts works only partially
@@ -141,16 +140,24 @@ export type UnpackTransformConfigTypes<T> = T extends
     ? { [K in keyof T]: UnpackTransformConfigTypes<T[K]> }
     : T;
 
+export type AnyTransform<T> =
+    | T
+    | EnvTransformConfig<T>
+    | RefTransformConfig<T>
+    | FileTransformConfig<T>
+    | ValidatorSpec<T>;
+
+export type AnyTransformStrict<T> =
+    | EnvTransformConfig<T>
+    | RefTransformConfig<T>
+    | FileTransformConfig<T>
+    | ValidatorSpec<T>;
+
 // typescript does weird things with booleans by converting it tu true | false, which then breaks inferrence
 export type AddTransformConfigToPrimitives<T> = T extends Primitive | Date
-    ? T | EnvTransformConfig<T> | RefTransformConfig<T> | FileTransformConfig<T> | ValidatorSpec<T>
+    ? AnyTransform<T>
     : T extends boolean
-    ?
-          | boolean
-          | EnvTransformConfig<boolean>
-          | RefTransformConfig<boolean>
-          | FileTransformConfig<boolean>
-          | ValidatorSpec<boolean>
+    ? AnyTransform<boolean>
     : T extends object // eslint-disable-line @typescript-eslint/ban-types
     ? { [P in keyof T]: AddTransformConfigToPrimitives<T[P]> }
     : T;
@@ -165,7 +172,7 @@ export type AppConfig = {
 export interface BaseRegisterFnArgs<Config> {
     config: UnpackTransformConfigTypes<Config>;
     app: AppConfig;
-    logger: pino.Logger;
+    logger: PinoLogger;
 }
 
 export interface ResolveRegisterFnArgs<Config> extends BaseRegisterFnArgs<Config> {

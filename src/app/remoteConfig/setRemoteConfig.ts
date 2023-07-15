@@ -7,9 +7,9 @@ import {
     StreamedRemoteRefTransformConfig,
 } from "./types";
 import { RemoteConfigHandler } from "./RemoteConfigHandler";
-import { remapTree } from "../utils";
+import { remapTree, serviceWithPreflightOrShutdown } from "../utils";
 import { StreamedRemoteConfigValue, OnceRemoteConfigValue } from "./remoteValues";
-import { serviceWithPreflightOrShutdown, BaseRegisterFnArgs } from "../types";
+import { BaseRegisterFnArgs } from "../types";
 
 const REF_TYPES = {
     STREAMED_REMOTE: 3,

@@ -1,4 +1,4 @@
-import { join } from "path";
+import { join } from "node:path";
 import { IReplicaService } from "./types";
 import { Logger } from "../../logger";
 
