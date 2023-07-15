@@ -55,7 +55,7 @@ export type EnvFn<Config extends Record<string, any>> = (
 
 export type FileTransformFn = <ReturnValue = Buffer>(
     filePath: string | ((env: Omit<DependencyArgs, "$env">) => string),
-    fileTransformFn?: (value: Buffer) => ReturnValue | Promise<ReturnValue>,
+    fileTransformFn?: (value: Buffer) => ReturnValue,
 ) => FileTransformConfig<ReturnValue>;
 
 export type EnvalidTransformer = {
@@ -101,7 +101,7 @@ export interface FileTransformConfig<ReturnValue = Buffer> {
 
 export type UnpackEnvConfig<T> = T extends EnvTransformConfig<infer V> ? V : never;
 export type UnpackRefConfig<T> = T extends RefTransformConfig<infer V> ? V : never;
-export type UnpackFileConfig<T> = T extends FileTransformConfig<infer V> ? V : never;
+export type UnpackFileConfig<T> = T extends FileTransformConfig<infer V> ? Promise<V> : never;
 export type UnpackValidatorSpec<T> = T extends ValidatorSpec<infer V> ? V : never;
 
 // this type tries to unpack the types one by one. If none of the configs match, it returns never
@@ -140,19 +140,13 @@ export type UnpackTransformConfigTypes<T> = T extends
     ? { [K in keyof T]: UnpackTransformConfigTypes<T[K]> }
     : T;
 
-export type AnyTransform<T> =
-    | T
-    | EnvTransformConfig<T>
-    | RefTransformConfig<T>
-    | FileTransformConfig<T>
-    | ValidatorSpec<T>;
-
 export type AnyTransformStrict<T> =
     | EnvTransformConfig<T>
     | RefTransformConfig<T>
     | FileTransformConfig<T>
     | ValidatorSpec<T>;
 
+export type AnyTransform<T> = T | AnyTransformStrict<T>;
 // typescript does weird things with booleans by converting it tu true | false, which then breaks inferrence
 export type AddTransformConfigToPrimitives<T> = T extends Primitive | Date
     ? AnyTransform<T>

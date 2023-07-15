@@ -28,7 +28,6 @@ import { Container } from "inversify";
 import { pick, kebabCase, uniq, camelCase, once, merge } from "lodash";
 import { set } from "lodash/fp";
 import yargs, { argv as defaultArgv } from "yargs";
-import { readFileSync } from "node:fs";
 import { str, bool, num, host, port, url, json, cleanEnv } from "envalid";
 import { createLogger, Logger } from "../logger";
 import {
@@ -237,12 +236,13 @@ export class ApplicationBuilder<Config, RemoteConfig> {
             predicate: value => !!value && value.__type === REF_TYPES.FILE,
             transform: async ({ filePath, fileTransformFn }: FileTransformConfig) => {
                 const resolvedPath = typeof filePath === "function" ? filePath({ app: this.app }) : filePath;
-                const fileContent = readFileSync(resolvedPath);
-                if (!fileTransformFn) {
-                    return fileContent;
+                const { readFile } = await import("fs/promises");
+                const fileContent = await readFile(resolvedPath);
+                if (fileTransformFn) {
+                    const result = await fileTransformFn?.(fileContent);
+                    return result;
                 }
-
-                return fileTransformFn(fileContent);
+                return fileContent;
             },
         },
         {
