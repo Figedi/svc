@@ -8,8 +8,6 @@ Replace them with non nodejs related versions for edge compat
 - axios <-- replace with isomorphic fetch
 - yargs <-- completely replace and refactor
 - pino <-- make logger configurable and add an edge logger (+ lazy imports)
-- envalid <- should be good probably
-- inversify <-- probably runs in browser
 - make remoteConfig imports lazy, only types allowed
 ## Features
 

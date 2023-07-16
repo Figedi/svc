@@ -71,6 +71,18 @@ export type EnvalidTransformer = {
     json: <T>(spec?: Spec<T>) => ValidatorSpec<T>;
 };
 
+export const REF_TYPES = {
+    ENV: 0,
+    REF: 1,
+    FILE: 2,
+} as const;
+
+export const REF_SYMBOLS = {
+    ENV: Symbol.for("@figedi/svc-transform-env"),
+    REF: Symbol.for("@figedi/svc-transform-ref"),
+    FILE: Symbol.for("@figedi/svc-transform-file"),
+} as const;
+
 export type EnvTransformFn = <ReturnValue = string>(
     transformFn?: (value: string) => ReturnValue,
     defaultValue?: ReturnValue,
@@ -82,19 +94,22 @@ export type RefTransformFn = <ReturnValue = string>(
 ) => RefTransformConfig<ReturnValue>;
 
 export interface EnvTransformConfig<ReturnValue = string> {
-    __type: 0;
+    __type: typeof REF_TYPES.ENV;
+    __sym: symbol;
     transformFn?: (value: string) => ReturnValue;
     defaultValue?: ReturnValue;
 }
 
 export interface RefTransformConfig<ReturnValue = string> {
-    __type: 2;
+    __type: typeof REF_TYPES.REF;
+    __sym: symbol;
     referenceValue: string;
     refTransformFn?: (value?: string) => ReturnValue;
 }
 
 export interface FileTransformConfig<ReturnValue = Buffer> {
-    __type: 3;
+    __type: typeof REF_TYPES.FILE;
+    __sym: symbol;
     filePath: string | ((env: Omit<DependencyArgs, "$env">) => string);
     fileTransformFn?: (fileBuffer: Buffer) => ReturnValue | Promise<ReturnValue>;
 }
@@ -106,6 +121,16 @@ export type UnpackValidatorSpec<T> = T extends ValidatorSpec<infer V> ? V : neve
 
 // this type tries to unpack the types one by one. If none of the configs match, it returns never
 type Unpacked<T> = UnpackRefConfig<T> | UnpackEnvConfig<T> | UnpackFileConfig<T> | UnpackValidatorSpec<T>;
+
+export type InternalTransform<T> = EnvTransformConfig<T> | RefTransformConfig<T> | FileTransformConfig<T>;
+export type AnyTransformStrict<T> = InternalTransform<T> | ValidatorSpec<T>;
+export type AnyTransform<T> = T | AnyTransformStrict<T>;
+
+export const isTransformer = (obj: any): obj is InternalTransform<any> =>
+    // eslint-disable-next-line no-underscore-dangle
+    !!(obj as InternalTransform<any>).__sym &&
+    // eslint-disable-next-line no-underscore-dangle
+    Object.values(REF_SYMBOLS).some(sym => (obj as InternalTransform<any>).__sym === sym);
 
 /**
  * Here's the deal: This automatic  inferrence of generics in ts works only partially
@@ -128,11 +153,7 @@ type Unpacked<T> = UnpackRefConfig<T> | UnpackEnvConfig<T> | UnpackFileConfig<T>
  * 3. If it is not a config, but an object, recursively apply 1
  * 4. If it is not  a transformConfig or an object, do nothing (e.g. it might be a primitive)
  */
-export type UnpackTransformConfigTypes<T> = T extends
-    | EnvTransformConfig<any>
-    | RefTransformConfig<any>
-    | FileTransformConfig<any>
-    | ValidatorSpec<any>
+export type UnpackTransformConfigTypes<T> = T extends AnyTransformStrict<any>
     ? Unpacked<T> extends never
         ? T
         : Unpacked<T>
@@ -140,13 +161,6 @@ export type UnpackTransformConfigTypes<T> = T extends
     ? { [K in keyof T]: UnpackTransformConfigTypes<T[K]> }
     : T;
 
-export type AnyTransformStrict<T> =
-    | EnvTransformConfig<T>
-    | RefTransformConfig<T>
-    | FileTransformConfig<T>
-    | ValidatorSpec<T>;
-
-export type AnyTransform<T> = T | AnyTransformStrict<T>;
 // typescript does weird things with booleans by converting it tu true | false, which then breaks inferrence
 export type AddTransformConfigToPrimitives<T> = T extends Primitive | Date
     ? AnyTransform<T>

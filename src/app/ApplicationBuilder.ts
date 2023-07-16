@@ -25,8 +25,9 @@ import type { RemoteConfigFn, UnpackRemoteConfigTypes } from "./remoteConfig";
 
 import appRootPath from "app-root-path";
 import { Container } from "inversify";
-import { pick, kebabCase, uniq, camelCase, once, merge } from "lodash";
+import { pick, kebabCase, uniq, camelCase, once, merge, mergeWith } from "lodash";
 import { set } from "lodash/fp";
+// @todo replace with minimist
 import yargs, { argv as defaultArgv } from "yargs";
 import { str, bool, num, host, port, url, json, cleanEnv } from "envalid";
 import { createLogger, Logger } from "../logger";
@@ -38,7 +39,7 @@ import {
     serviceWithPreflightOrShutdown,
     TreeNodeTransformerConfig,
 } from "./utils";
-import { ShutdownHandle, ErrorHandle } from "./types";
+import { ShutdownHandle, ErrorHandle, REF_SYMBOLS, REF_TYPES, isTransformer } from "./types";
 import { DeepMerge } from "./types/base";
 
 export type AppPreflightFn<C, RC> = (container: RegisterFnArgs<C, RC>) => Promise<any> | any;
@@ -53,29 +54,25 @@ export interface RegisterFnArgs<Config, RemoteConfig> extends ResolveRegisterFnA
     remoteConfig: UnpackRemoteConfigTypes<RemoteConfig>;
 }
 
-const REF_TYPES = {
-    ENV: 0,
-    OPT: 1,
-    REF: 2,
-    FILE: 3,
-};
-
-const any: EnvTransformFn = (transformFn, defaultValue) => ({
+const env: EnvTransformFn = (transformFn, defaultValue) => ({
     transformFn,
     defaultValue,
-    __type: 0,
+    __type: REF_TYPES.ENV,
+    __sym: REF_SYMBOLS.ENV,
 });
 
 const ref: RefTransformFn = (referenceValue, refTransformFn) => ({
     referenceValue,
     refTransformFn,
-    __type: 2,
+    __type: REF_TYPES.REF,
+    __sym: REF_SYMBOLS.REF,
 });
 
 const file: FileTransformFn = (filePath, fileTransformFn) => ({
     filePath,
     fileTransformFn,
-    __type: 3,
+    __type: REF_TYPES.FILE,
+    __sym: REF_SYMBOLS.FILE,
 });
 
 const $env: EnvalidTransformer = {
@@ -87,7 +84,7 @@ const $env: EnvalidTransformer = {
     url,
     json,
     file,
-    any,
+    any: env, // @todo resolve legacy naming
     ref,
 };
 
@@ -166,9 +163,25 @@ export class ApplicationBuilder<Config, RemoteConfig> {
         ...this.buildBaseResolveArgs(),
     });
 
+    public reconfigure(opts: {
+        appConfig: Partial<AppBuilderConfig>;
+        env?: never;
+        mode?: "merge" | "overwrite";
+    }): ApplicationBuilder<Config, RemoteConfig>;
+    public reconfigure<TConf extends Record<string, any>>(opts: {
+        appConfig?: Partial<AppBuilderConfig>;
+        env: EnvFn<TConf>;
+        mode?: "merge";
+    }): ApplicationBuilder<DeepMerge<Config, TConf, AnyTransformStrict<any>>, RemoteConfig>;
+    public reconfigure<TConf extends Record<string, any>>(opts: {
+        appConfig?: Partial<AppBuilderConfig>;
+        env: EnvFn<TConf>;
+        mode?: "overwrite";
+    }): ApplicationBuilder<TConf, RemoteConfig>;
     public reconfigure<TConf extends Record<string, any>>(opts: {
         appConfig?: Partial<AppBuilderConfig>;
         env?: EnvFn<TConf>;
+        mode?: "merge" | "overwrite";
     }): ApplicationBuilder<DeepMerge<Config, TConf, AnyTransformStrict<any>>, RemoteConfig> {
         if (opts.appConfig) {
             this.appBuilderConfig = merge(
@@ -180,7 +193,17 @@ export class ApplicationBuilder<Config, RemoteConfig> {
         }
         if (opts.env) {
             const overwrittenConfig = remapTree(opts.env({ $env, app: this.app }), ...this.configTransformers);
-            this.config = merge({}, this.config, overwrittenConfig);
+            if (opts.mode === "overwrite") {
+                this.config = overwrittenConfig;
+            } else {
+                // @todo test this, idea is to not go further with merging once the right hand side is a transformer definition
+                this.config = mergeWith({}, this.config, overwrittenConfig, obj => {
+                    if (isTransformer(obj)) {
+                        return obj;
+                    }
+                    return undefined;
+                });
+            }
         }
 
         const envName = process.env.ENVIRONMENT_NAME || "[unknown]";
@@ -213,6 +236,7 @@ export class ApplicationBuilder<Config, RemoteConfig> {
      * typically RemoteConfigValue's, which allow downstream services to subscribe to asynchronous config changes
      *
      */
+    // @todo add a generic config plugin and remove this one, it merges the config instead of remoteConfig
     public setRemoteConfig<ProjectedRemoteConfig>(
         envFn: RemoteConfigFn<RemoteConfig, Config, ProjectedRemoteConfig>,
     ): ApplicationBuilder<Config, ProjectedRemoteConfig> {
@@ -236,6 +260,7 @@ export class ApplicationBuilder<Config, RemoteConfig> {
             predicate: value => !!value && value.__type === REF_TYPES.FILE,
             transform: async ({ filePath, fileTransformFn }: FileTransformConfig) => {
                 const resolvedPath = typeof filePath === "function" ? filePath({ app: this.app }) : filePath;
+                // @todo guard clause for non node envs for better errors
                 const { readFile } = await import("fs/promises");
                 const fileContent = await readFile(resolvedPath);
                 if (fileTransformFn) {
@@ -296,7 +321,7 @@ export class ApplicationBuilder<Config, RemoteConfig> {
      *
      */
     public setEnv<C extends Record<string, any>>(envFn: EnvFn<C>): ApplicationBuilder<C, RemoteConfig> {
-        // @todo somehow allow async transformers -> file -> async readFile
+        // @todo somehow allow async transformers, this however needs async DI injection ? (or use the fact that we have lifecycles, so config is materialized before resolution phase)
         this.config = remapTree(envFn({ $env, app: this.app }), ...this.configTransformers);
 
         return this as any as ApplicationBuilder<C, RemoteConfig>;

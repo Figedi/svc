@@ -103,7 +103,7 @@ describe("ApplicationBuilder", function AppBuilderTest() {
                     return ErrorHandle.IGNORE;
                 })
                 .registerDefaultCommand("start", ({ resolve, config }) =>
-                    createDefaultCommand(resolve("providerB"), config.a.deep.fileVal, config.serviceName, done),
+                    createDefaultCommand(resolve("providerB"), config.a.deep.bool, config.serviceName, done),
                 )
                 .run();
         });
