@@ -10,10 +10,10 @@ describe("ApplicationBuilder", function AppBuilderTest() {
     this.timeout(20000);
 
     beforeEach(() => {
-        process.argv = ["npm", "specs", "--bar", "42", "--foo-bar", "10.5", "--foo-baz", "21"];
+        process.argv = ["npx", "specs", "--bar", "42", "--foo-bar", "10.5", "--foo-baz", "21"];
     });
 
-    describe.only("integration", function AppBuilderIntTest() {
+    describe("integration", function AppBuilderIntTest() {
         this.timeout(10000);
         const createDefaultCommand = (
             configProvider: Provider<any>,
@@ -24,7 +24,7 @@ describe("ApplicationBuilder", function AppBuilderTest() {
             info: {
                 name: "DefaultCommand",
                 argv: ({ $arg }) => ({
-                    bar: $arg({ required: true, type: "number" }),
+                    bar: $arg({ required: true, alias: ["b"], type: "number" }),
                     foo: {
                         baz: $arg({ required: true, type: "number" }),
                         default: $arg({ default: false, type: "boolean" }),

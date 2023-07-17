@@ -21,6 +21,7 @@ import type {
     EnvalidTransformer,
     AnyTransformStrict,
     InferredOptionType,
+    AllOptions,
 } from "./types";
 import type { TRemoteConfigFactoryResult, UnpackRemoteConfigTypes } from "./remoteConfig";
 import type { DeepMerge } from "./types/base";
@@ -433,8 +434,8 @@ export class ApplicationBuilder<Config, RemoteConfig> {
             return;
         }
         const baseArgs = command.info.argv({
-            $arg: <O extends Options>(opts: O) => ({ ...opts, __type: "opt" } as InferredOptionType<O>),
-        }) as Record<string, Options>;
+            $arg: <O extends AllOptions>(opts: O) => ({ ...(opts as any), __type: "opt" } as InferredOptionType<O>),
+        }) as Record<string, AllOptions>;
 
         const isArgvType = (v: any) => "__type" in v && v.__type === "opt";
         // in order to pass the options to yargs, we need to flatten the tree and generate a record of only yargs-compliant Options
@@ -460,7 +461,7 @@ export class ApplicationBuilder<Config, RemoteConfig> {
         });
 
         // @todo throw on unknown args
-        // @todo look at the infer options again, it cant be that easy....
+        // @todo implement required: true
         const convertedArgs = minimist(process.argv.slice(2), options) as Record<string, any>;
 
         /**
