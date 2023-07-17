@@ -1,7 +1,7 @@
 import type { Logger as PinoLogger } from "pino";
 import type { Container } from "inversify";
 import type { ValidatorSpec, Spec } from "envalid";
-import type { Arguments } from "yargs";
+import type { ParsedArgs } from "minimist";
 import type { Logger } from "../../logger";
 import type { Primitive } from "./base";
 import type { ArgvParsingParams, AddOptionType } from "./args";
@@ -27,7 +27,7 @@ export interface AppBuilderConfig {
 export interface ExecuteCommandArgs<TArgv extends Record<string, any>> {
     logger: Logger;
     app: AppConfig;
-    argv?: TArgv & { $raw: Arguments };
+    argv?: TArgv & { $raw: ParsedArgs };
 }
 
 export interface ICommandInfo<TArgv extends Record<string, any> = Record<string, any>> {
@@ -128,9 +128,9 @@ export type AnyTransform<T> = T | AnyTransformStrict<T>;
 
 export const isTransformer = (obj: any): obj is InternalTransform<any> =>
     // eslint-disable-next-line no-underscore-dangle
-    !!(obj as InternalTransform<any>).__sym &&
+    !!(obj as InternalTransform<any>)?.__sym &&
     // eslint-disable-next-line no-underscore-dangle
-    Object.values(REF_SYMBOLS).some(sym => (obj as InternalTransform<any>).__sym === sym);
+    Object.values(REF_SYMBOLS).some(sym => (obj as InternalTransform<any>)?.__sym === sym);
 
 /**
  * Here's the deal: This automatic  inferrence of generics in ts works only partially

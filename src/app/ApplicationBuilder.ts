@@ -1,6 +1,7 @@
 /* eslint-disable no-underscore-dangle */
 import type { interfaces } from "inversify";
-import type { Options, InferredOptionType, Arguments } from "yargs";
+import type { ParsedArgs } from "minimist";
+import type { Options } from "minimist-options";
 import type { ValidatorSpec } from "envalid";
 import type {
     EnvTransformFn,
@@ -19,6 +20,7 @@ import type {
     FileTransformConfig,
     EnvalidTransformer,
     AnyTransformStrict,
+    InferredOptionType,
 } from "./types";
 import type { TRemoteConfigFactoryResult, UnpackRemoteConfigTypes } from "./remoteConfig";
 import type { DeepMerge } from "./types/base";
@@ -27,8 +29,6 @@ import appRootPath from "app-root-path";
 import { Container } from "inversify";
 import { pick, kebabCase, uniq, camelCase, once, merge, mergeWith } from "lodash";
 import { set } from "lodash/fp";
-// @todo replace with minimist
-import yargs, { argv as defaultArgv } from "yargs";
 import { str, bool, num, host, port, url, json, cleanEnv } from "envalid";
 import { createLogger, Logger } from "../logger";
 import {
@@ -40,6 +40,8 @@ import {
     TreeNodeTransformerConfig,
 } from "./utils";
 import { ShutdownHandle, ErrorHandle, REF_SYMBOLS, REF_TYPES, isTransformer } from "./types";
+import buildOptions from "minimist-options";
+import minimist from "minimist";
 
 export type AppPreflightFn<C, RC> = (container: RegisterFnArgs<C, RC>) => Promise<any> | any;
 
@@ -426,7 +428,7 @@ export class ApplicationBuilder<Config, RemoteConfig> {
 
     private parseCommandArgs<TArgs extends Record<string, any>>(
         command: Command<TArgs, any>,
-    ): (TArgs & { $raw: Arguments }) | undefined {
+    ): (TArgs & { $raw: ParsedArgs }) | undefined {
         if (!command.info.argv) {
             return;
         }
@@ -452,17 +454,14 @@ export class ApplicationBuilder<Config, RemoteConfig> {
                 `Encounted reserved keyword in command-args, please change the arg-name to something different than '$raw' or 'command'`,
             );
         }
-        // this actually registers the flattened argv-object to yargs and parses process.argv. throws if sth doesnt match
-        const convertedArgs = yargs(process.argv)
-            .option("command", {
-                type: "string",
-                required: !this.defaultCommandName,
-                choices: this.commandReferences,
-                description: "Name of the command to execute, required if no default-command has been registered",
-            })
-            .options(flattenedBaseArgs)
-            .strictOptions()
-            .parse();
+        const options = buildOptions({
+            command: { type: "string" },
+            ...flattenedBaseArgs,
+        });
+
+        // @todo throw on unknown args
+        // @todo look at the infer options again, it cant be that easy....
+        const convertedArgs = minimist(process.argv.slice(2), options) as Record<string, any>;
 
         /**
          * for compliance w/ tArgs, we need to re-nest again with the result of convertedArgs.
@@ -477,7 +476,7 @@ export class ApplicationBuilder<Config, RemoteConfig> {
         return {
             ...reNestedTree,
             $raw: pick(convertedArgs, Object.keys(flattenedBaseArgs)),
-        } as TArgs & { $raw: Arguments };
+        } as TArgs & { $raw: ParsedArgs };
     }
 
     private async runCommand<TResult>(commandName: string): Promise<TResult> {
@@ -576,7 +575,8 @@ export class ApplicationBuilder<Config, RemoteConfig> {
     };
 
     public async run<TResult = any>(command?: string): Promise<TResult> {
-        const argv: any = defaultArgv;
+        const argv: any = minimist(process.argv.slice(2), buildOptions({ command: { type: "string" } }));
+
         const commandName = (command || argv.command || this.defaultCommandName) as string | undefined;
         if (!commandName || typeof commandName !== "string") {
             const availableCommands = this.commandReferences.join("\n");

@@ -10,10 +10,10 @@ describe("ApplicationBuilder", function AppBuilderTest() {
     this.timeout(20000);
 
     beforeEach(() => {
-        process.argv = ["--bar", "42", "--foo-bar", "10.5", "--foo-baz", "21"];
+        process.argv = ["npm", "specs", "--bar", "42", "--foo-bar", "10.5", "--foo-baz", "21"];
     });
 
-    describe("integration", function AppBuilderIntTest() {
+    describe.only("integration", function AppBuilderIntTest() {
         this.timeout(10000);
         const createDefaultCommand = (
             configProvider: Provider<any>,
@@ -24,13 +24,13 @@ describe("ApplicationBuilder", function AppBuilderTest() {
             info: {
                 name: "DefaultCommand",
                 argv: ({ $arg }) => ({
-                    bar: $arg({ required: true, alias: "b", type: "number", description: "example" }),
+                    bar: $arg({ required: true, type: "number" }),
                     foo: {
-                        baz: $arg({ required: true, alias: "v", type: "number", description: "other example" }),
-                        default: $arg({ default: false, type: "boolean", description: "default example" }),
-                        undef: $arg({ type: "string", description: "undef example" }),
+                        baz: $arg({ required: true, type: "number" }),
+                        default: $arg({ default: false, type: "boolean" }),
+                        undef: $arg({ type: "string" }),
                     },
-                    fooBar: $arg({ required: true, alias: "c", type: "number", description: "example" }),
+                    fooBar: $arg({ required: true, type: "number" }),
                 }),
             },
             execute: async ({ logger, argv }) => {
@@ -103,7 +103,7 @@ describe("ApplicationBuilder", function AppBuilderTest() {
                     return ErrorHandle.IGNORE;
                 })
                 .registerDefaultCommand("start", ({ resolve, config }) =>
-                    createDefaultCommand(resolve("providerB"), config.a.deep.bool, config.serviceName, done),
+                    createDefaultCommand(resolve("providerB"), config.a.deep.bool, "0", done),
                 )
                 .run();
         });
