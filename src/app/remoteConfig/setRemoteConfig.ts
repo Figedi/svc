@@ -1,30 +1,32 @@
 import { share } from "rxjs/operators";
 import {
-    RemoteConfigFn,
-    onceRemoteRef,
-    streamedRemoteRef,
+    BaseRemoteConfig,
     OnceRemoteRefTransformConfig,
     StreamedRemoteRefTransformConfig,
+    onceRemoteRef,
+    streamedRemoteRef,
+    REMOTE_REF_TYPES,
 } from "./types";
 import { RemoteConfigHandler } from "./RemoteConfigHandler";
 import { remapTree, serviceWithPreflightOrShutdown } from "../utils";
 import { StreamedRemoteConfigValue, OnceRemoteConfigValue } from "./remoteValues";
-import { BaseRegisterFnArgs } from "../types";
 
-const REF_TYPES = {
-    STREAMED_REMOTE: 3,
-    ONCE_REMOTE: 4,
+export type IBuildRemoteConfigParams<TRemoteConfig, TProjectedRemoteConfig> = (
+    remoteConfig: BaseRemoteConfig<TRemoteConfig, TProjectedRemoteConfig>,
+) => TRemoteConfigFactoryResult<TProjectedRemoteConfig>;
+
+export type TRemoteConfigFactoryResult<TProjectedRemoteConfig> = {
+    lifecycleArtefacts: any[];
+    remoteConfig: TProjectedRemoteConfig;
 };
+export const remoteConfigFactory = <TRemoteConfig, TProjectedRemoteConfig>(
+    remoteConfig: BaseRemoteConfig<TRemoteConfig, TProjectedRemoteConfig>,
+): TRemoteConfigFactoryResult<TProjectedRemoteConfig> => {
+    const lifecycleArtefacts: any[] = [];
+    const { projections, source, reloading } = remoteConfig;
 
-// todo: make this lazily evaluated in order to support resolve here
-export const setRemoteConfig = <Config, RemoteConfig, ProjectedRemoteConfig>(
-    envFn: RemoteConfigFn<RemoteConfig, Config, ProjectedRemoteConfig>,
-    buildBaseResolveArgs: () => BaseRegisterFnArgs<Config>,
-    pushToLifecycleHandlers: (klass: any) => void,
-): ProjectedRemoteConfig => {
-    const { projections, source, reloading } = envFn(buildBaseResolveArgs());
     if (serviceWithPreflightOrShutdown(source)) {
-        pushToLifecycleHandlers(source);
+        lifecycleArtefacts.push(source);
     }
 
     if (!(reloading || projections)) {
@@ -35,29 +37,37 @@ export const setRemoteConfig = <Config, RemoteConfig, ProjectedRemoteConfig>(
 
     if (reloading && reloading.reactsOn) {
         const handler = new RemoteConfigHandler(stream$, reloading.reactsOn, reloading.strategy.execute);
-        pushToLifecycleHandlers(handler);
+        if (serviceWithPreflightOrShutdown(handler)) {
+            lifecycleArtefacts.push(handler);
+        }
     }
     const projectionConfig = projections ? projections({ once: onceRemoteRef, streamed: streamedRemoteRef }) : {};
 
-    return remapTree(
+    const projectedRemoteConfig = remapTree(
         projectionConfig,
         {
             // eslint-disable-next-line no-underscore-dangle
-            predicate: value => !!value && value.__type === REF_TYPES.ONCE_REMOTE,
-            transform: ({ propGetter }: OnceRemoteRefTransformConfig<RemoteConfig>) => {
+            predicate: value => !!value && value.__type === REMOTE_REF_TYPES.ONCE_REMOTE,
+            transform: ({ propGetter }: OnceRemoteRefTransformConfig<TRemoteConfig>) => {
                 const remoteConfigValue = new OnceRemoteConfigValue(stream$, propGetter);
-                pushToLifecycleHandlers(remoteConfigValue);
+                if (serviceWithPreflightOrShutdown(remoteConfigValue)) {
+                    lifecycleArtefacts.push(remoteConfigValue);
+                }
                 return remoteConfigValue;
             },
         },
         {
             // eslint-disable-next-line no-underscore-dangle
-            predicate: value => !!value && value.__type === REF_TYPES.STREAMED_REMOTE,
-            transform: ({ propGetter }: StreamedRemoteRefTransformConfig<RemoteConfig>) => {
+            predicate: value => !!value && value.__type === REMOTE_REF_TYPES.STREAMED_REMOTE,
+            transform: ({ propGetter }: StreamedRemoteRefTransformConfig<TRemoteConfig>) => {
                 const remoteConfigValue = new StreamedRemoteConfigValue(stream$, propGetter);
-                pushToLifecycleHandlers(remoteConfigValue);
+                if (serviceWithPreflightOrShutdown(remoteConfigValue)) {
+                    lifecycleArtefacts.push(remoteConfigValue);
+                }
                 return remoteConfigValue;
             },
         },
-    );
+    ) as TProjectedRemoteConfig;
+
+    return { lifecycleArtefacts, remoteConfig: projectedRemoteConfig };
 };

@@ -1,16 +1,16 @@
 /* eslint-disable max-classes-per-file */
-import { MeteringRecorder } from "@figedi/metering";
+import type { MeteringRecorder } from "@figedi/metering";
 import { createValidator, SchemaValidationError, SchemaValidator, JSONSchema } from "@figedi/typecop";
 import { Subject, Observable, lastValueFrom } from "rxjs";
 import { take } from "rxjs/operators";
 import { parse } from "semver";
 import stringify from "fast-json-stable-stringify";
 
-import { Logger } from "../../../logger";
 import { remapTreeAsync } from "../../utils";
-import { IJsonDecryptor } from "../types";
-import { ConfigMetrics } from "./types";
 import { InvalidConfigWithoutDataError } from "./errors";
+import type { Logger } from "../../../logger";
+import type { IJsonDecryptor } from "../types";
+import type { ConfigMetrics } from "./types";
 
 export abstract class BaseRemoteSource<Schema> {
     public value$!: Subject<Schema>;

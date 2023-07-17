@@ -1,5 +1,5 @@
-import { Observable } from "rxjs";
-import { Gauge } from "@figedi/metering";
+import type { Observable } from "rxjs";
+import type { Gauge } from "@figedi/metering";
 
 export interface IRemoteSource<Schema> {
     execute: () => Promise<any>;

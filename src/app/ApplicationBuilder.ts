@@ -2,7 +2,6 @@
 import type { interfaces } from "inversify";
 import type { Options, InferredOptionType, Arguments } from "yargs";
 import type { ValidatorSpec } from "envalid";
-
 import type {
     EnvTransformFn,
     RefTransformFn,
@@ -21,7 +20,8 @@ import type {
     EnvalidTransformer,
     AnyTransformStrict,
 } from "./types";
-import type { RemoteConfigFn, UnpackRemoteConfigTypes } from "./remoteConfig";
+import type { TRemoteConfigFactoryResult, UnpackRemoteConfigTypes } from "./remoteConfig";
+import type { DeepMerge } from "./types/base";
 
 import appRootPath from "app-root-path";
 import { Container } from "inversify";
@@ -40,7 +40,6 @@ import {
     TreeNodeTransformerConfig,
 } from "./utils";
 import { ShutdownHandle, ErrorHandle, REF_SYMBOLS, REF_TYPES, isTransformer } from "./types";
-import { DeepMerge } from "./types/base";
 
 export type AppPreflightFn<C, RC> = (container: RegisterFnArgs<C, RC>) => Promise<any> | any;
 
@@ -237,22 +236,16 @@ export class ApplicationBuilder<Config, RemoteConfig> {
      *
      */
     // @todo add a generic config plugin and remove this one, it merges the config instead of remoteConfig
-    public setRemoteConfig<ProjectedRemoteConfig>(
-        envFn: RemoteConfigFn<RemoteConfig, Config, ProjectedRemoteConfig>,
-    ): ApplicationBuilder<Config, ProjectedRemoteConfig> {
-        const importPromise = import("./remoteConfig")
-            .then(mod => {
-                const remoteConfig = mod.setRemoteConfig(
-                    envFn,
-                    this.buildBaseResolveArgs,
-                    this.servicesWithLifecycleHandlers.push.bind(this.servicesWithLifecycleHandlers),
-                );
-                this.remoteConfig = remoteConfig as any; // ts-cannot infer the projected type here
-            })
-            .catch((e: any) => this.handleError({ error: e, reason: "INTERNAL_ERROR" }));
-        this.preflightFns.unshift(() => importPromise);
+    public addRemoteConfig<TProjRemoteConfig>(
+        remoteConfigFactory: (args: BaseRegisterFnArgs<Config>) => TRemoteConfigFactoryResult<TProjRemoteConfig>,
+    ): ApplicationBuilder<Config, TProjRemoteConfig> {
+        const args = this.buildBaseResolveArgs();
+        const { remoteConfig, lifecycleArtefacts } = remoteConfigFactory(args);
+        lifecycleArtefacts.forEach(artefact => this.servicesWithLifecycleHandlers.push(artefact));
 
-        return this as any as ApplicationBuilder<Config, ProjectedRemoteConfig>;
+        this.remoteConfig = remoteConfig as any; // ts-cannot infer the projected type here
+
+        return this as any as ApplicationBuilder<Config, TProjRemoteConfig>;
     }
 
     private configTransformers: TreeNodeTransformerConfig[] = [
@@ -437,7 +430,7 @@ export class ApplicationBuilder<Config, RemoteConfig> {
         if (!command.info.argv) {
             return;
         }
-        const baseArgs = command.info.argv!({
+        const baseArgs = command.info.argv({
             $arg: <O extends Options>(opts: O) => ({ ...opts, __type: "opt" } as InferredOptionType<O>),
         }) as Record<string, Options>;
 

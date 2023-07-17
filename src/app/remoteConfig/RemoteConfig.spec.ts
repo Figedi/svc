@@ -22,6 +22,7 @@ import { ReactsOnFn } from "./types";
 import { InvalidConfigWithoutDataError, MaxRetriesWithoutDataError } from "./remoteSource";
 import { sleep } from "../utils";
 import { assertInTestAppBuilder, assertErrorInTestAppBuilder } from "../shared.specFiles/helpers";
+import { remoteConfigFactory } from "./setRemoteConfig";
 
 const REMOTE_CONFIG_ENDPOINT = "http://localhost:8080"; // example endpoint, will never be executed due to nock
 
@@ -44,31 +45,33 @@ const createTestApplicationBuilder = (
             serviceName: "example-svc",
             environmentName: "dev",
         }))
-        .setRemoteConfig(({ logger, config }) => ({
-            source: new PollingRemoteSource({
-                logger,
-                schema: getRootSchema(),
-                schemaBaseDir: SCHEMA_BASE_DIR,
-                serviceName: config.serviceName,
-                fallback: initialValue,
-                jsonDecryptor: new SopsClient(KmsKeyDecryptor.createWithKmsClient(kmsClient)),
-                poll: {
-                    pollingIntervalMs,
-                    maxTriesWithoutValue: 2,
-                    backoffBaseMs: 100,
-                    endpoint: REMOTE_CONFIG_ENDPOINT,
-                    version: getVersion(),
+        .addRemoteConfig(({ logger, config }) =>
+            remoteConfigFactory({
+                source: new PollingRemoteSource({
+                    logger,
+                    schema: getRootSchema(),
+                    schemaBaseDir: SCHEMA_BASE_DIR,
+                    serviceName: config.serviceName,
+                    fallback: initialValue,
+                    jsonDecryptor: new SopsClient(KmsKeyDecryptor.createWithKmsClient(kmsClient)),
+                    poll: {
+                        pollingIntervalMs,
+                        maxTriesWithoutValue: 2,
+                        backoffBaseMs: 100,
+                        endpoint: REMOTE_CONFIG_ENDPOINT,
+                        version: getVersion(),
+                    },
+                }),
+                reloading: {
+                    reactsOn,
+                    strategy: createUpdateStrategyStub(),
                 },
+                projections: ({ once, streamed }) => ({
+                    onceValue: once(PROJECTIONS.logLevel),
+                    streamedValue: streamed(PROJECTIONS.logLevel),
+                }),
             }),
-            reloading: {
-                reactsOn,
-                strategy: createUpdateStrategyStub(),
-            },
-            projections: ({ once, streamed }) => ({
-                onceValue: once(PROJECTIONS.logLevel),
-                streamedValue: streamed(PROJECTIONS.logLevel),
-            }),
-        }));
+        );
 
     return {
         app: appBuilder,

@@ -1,6 +1,5 @@
-import { join } from "node:path";
-import { IReplicaService } from "./types";
-import { Logger } from "../../logger";
+import type { IReplicaService } from "./types";
+import type { Logger } from "../../logger";
 
 export class BaseReplicaService implements IReplicaService {
     public async runsInK8s(): Promise<boolean> {
@@ -20,11 +19,11 @@ export class BaseReplicaService implements IReplicaService {
 }
 
 export class ReplicaServiceFactory {
-    static create(logger: Logger, opts: Record<string, any>): IReplicaService {
+    static async create(logger: Logger, opts: Record<string, any>): Promise<IReplicaService> {
         const runsInK8s = !!process.env.KUBERNETES_SERVICE_HOST;
         if (runsInK8s) {
-            // eslint-disable-next-line import/no-dynamic-require
-            return require(join(__dirname, "../../k8s/K8sReplicaService")).K8sReplicaService(logger, opts);
+            const mod = await import("../../k8s/K8sReplicaService");
+            return new mod.K8sReplicaService(logger, opts as any);
         }
         return new BaseReplicaService();
     }

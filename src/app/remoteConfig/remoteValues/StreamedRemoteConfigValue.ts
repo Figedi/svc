@@ -1,6 +1,6 @@
 import { Observable, Subscription } from "rxjs";
 import { map } from "rxjs/operators";
-import { ServiceWithLifecycleHandlers } from "../../types/service";
+import type { ServiceWithLifecycleHandlers } from "../../types/service";
 
 export class StreamedRemoteConfigValue<ParentSchema, Schema = ParentSchema> implements ServiceWithLifecycleHandlers {
     private subscription?: Subscription;
@@ -13,7 +13,7 @@ export class StreamedRemoteConfigValue<ParentSchema, Schema = ParentSchema> impl
 
     private init(): void {
         this.output$ = this.parentStream.pipe(
-            map(config => (this.projection ? this.projection(config) : ((config as any) as Schema))),
+            map(config => (this.projection ? this.projection(config) : (config as any as Schema))),
         );
     }
 

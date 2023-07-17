@@ -1,7 +1,7 @@
 import type { KubeConfig, CoreV1Api } from "@kubernetes/client-node";
 import { hostname } from "os";
-import { IReplicaService } from "../app/remoteConfig";
-import { Logger } from "../logger";
+import type { IReplicaService } from "../app/remoteConfig";
+import type { Logger } from "../logger";
 
 interface K8sReplicaServiceOpts {
     namespace: string; // the namespace the svc is deployed in, e.g. 'dev'

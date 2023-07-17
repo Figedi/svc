@@ -1,6 +1,6 @@
 import { lastValueFrom, Observable, Subscription } from "rxjs";
 import { map, take, tap } from "rxjs/operators";
-import { ServiceWithLifecycleHandlers } from "../../types/service";
+import type { ServiceWithLifecycleHandlers } from "../../types/service";
 
 export class OnceRemoteConfigValue<ParentSchema, Schema = ParentSchema> implements ServiceWithLifecycleHandlers {
     private subscription?: Subscription;

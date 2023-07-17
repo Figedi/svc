@@ -1,14 +1,13 @@
-import { MeteringRecorder } from "@figedi/metering";
-import { JSONSchema } from "@figedi/typecop";
+import type { MeteringRecorder } from "@figedi/metering";
+import type { JSONSchema } from "@figedi/typecop";
 import axios, { AxiosResponse } from "axios";
-import { resolve } from "node:url";
 
 import { sleep } from "../../utils";
 import { BaseRemoteSource } from "./BaseRemoteSource";
-import { IJsonDecryptor } from "../types";
-import { IRemoteSource } from "./types";
 import { MaxRetriesWithDataError, MaxRetriesWithoutDataError } from "./errors";
-import { Logger } from "../../../logger";
+import type { IJsonDecryptor } from "../types";
+import type { IRemoteSource } from "./types";
+import type { Logger } from "../../../logger";
 
 export enum AcceptedVersionRange {
     none = "none",
@@ -88,6 +87,16 @@ export class PollingRemoteSource<Schema> extends BaseRemoteSource<Schema> implem
         };
     }
 
+    private resolveUrl = (from: string, to: string): string => {
+        const resolvedUrl = new URL(to, new URL(from, "resolve://"));
+        if (resolvedUrl.protocol === "resolve:") {
+            // `from` is a relative URL.
+            const { pathname, search, hash } = resolvedUrl;
+            return pathname + search + hash;
+        }
+        return resolvedUrl.toString();
+    };
+
     private getFetchUrl(): string {
         const { endpoint, prefix, version, acceptedRange } = this.config.poll;
         const replacedVersion = {
@@ -96,7 +105,8 @@ export class PollingRemoteSource<Schema> extends BaseRemoteSource<Schema> implem
             [AcceptedVersionRange.minor]: (v: string) => String(v).split(".").slice(0, -2).concat(["x", "x"]).join("."),
             [AcceptedVersionRange.latest]: () => "latest",
         }[acceptedRange!](version);
-        return resolve(endpoint, `${prefix}/v${replacedVersion}`);
+
+        return this.resolveUrl(endpoint, `${prefix}/v${replacedVersion}`);
     }
 
     private fetchData = async (url: string, tries = 0): Promise<AxiosResponse<ConfigServiceResponse<Schema>>> => {
