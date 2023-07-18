@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - "master"
+      - "next"
+      - "next-major"
 jobs:
   build_and_push:
     runs-on: ubuntu-latest
