@@ -1,8 +1,8 @@
+// eslint-disable-next-line import/no-extraneous-dependencies
 import { EdgeRuntime } from "edge-runtime";
 import { readFile } from "node:fs/promises";
 
 const runtime = new EdgeRuntime();
-// @todo import.meta.require + export not working yet
 const bundleContent = await readFile("./dist/index.bun.mjs", "utf-8");
 
 const sanitized = bundleContent
@@ -54,4 +54,5 @@ ApplicationBuilder.create({
     .run();
 `);
 
+// eslint-disable-next-line no-console
 console.log(result);

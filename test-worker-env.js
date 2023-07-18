@@ -40,6 +40,7 @@ ApplicationBuilder.create({
             name: "test",
         },
         execute() {
+            // eslint-disable-next-line no-console
             console.log(`hello from command ${config.serviceName}`);
         },
     }))
