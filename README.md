@@ -6,9 +6,7 @@ Base svc-framework for µ-services.
 ## TODO
 Replace them with non nodejs related versions for edge compat
 - axios <-- replace with isomorphic fetch
-- yargs <-- completely replace and refactor
 - pino <-- make logger configurable and add an edge logger (+ lazy imports)
-- make remoteConfig imports lazy, only types allowed
 ## Features
 
 This framework is the base for most of my µ-services. Some functionalities include:

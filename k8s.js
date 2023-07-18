@@ -1,1 +1,1 @@
-module.exports = require("./dist/k8s/index");
+module.exports = require("./dist/k8s/index.js");

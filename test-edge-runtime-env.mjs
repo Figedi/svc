@@ -1,8 +1,16 @@
-const { ApplicationBuilder } = require("./dist/app/index");
+import { EdgeRuntime } from "edge-runtime";
+import { readFile } from "node:fs/promises";
 
-process.env.A_DEEP_STR = "example_string";
-process.env.A_DEEP_BOOL = "0";
-process.env.A_DEEP_JSON = '{ "stringified": "json" }';
+const runtime = new EdgeRuntime();
+// @todo import.meta.require + export not working yet
+const bundleContent = await readFile("./dist/index.bun.mjs", "utf-8");
+
+const sanitized = bundleContent
+    // HAX, bun does some random stuff which likely will not exist in the end-bundle
+    .replace(/var __require = \([^)]*\) => \{[\s\S]*?\}/g, "")
+    .replace(/export\s*{(?:[\s\S]*?)};/g, "");
+const result = await runtime.evaluate(`
+${sanitized}; 
 
 ApplicationBuilder.create({
     bindProcessSignals: false,
@@ -11,7 +19,7 @@ ApplicationBuilder.create({
         a: {
             deep: {
                 fileVal: $env.file(
-                    ({ app }) => `${app.rootPath}/resources/example.json`,
+                    ({ app }) => app.rootPath +  '/resources/example.json',
                     // for testability, the file is being parsed as json
                     fileContent => ({ parsedContent: JSON.parse(fileContent.toString("utf-8")) }),
                 ),
@@ -40,7 +48,10 @@ ApplicationBuilder.create({
             name: "test",
         },
         execute() {
-            console.log(`hello from command ${config.serviceName}`);
+            console.log('hello from command' + config.serviceName);
         },
     }))
     .run();
+`);
+
+console.log(result);

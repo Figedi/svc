@@ -1,1 +1,1 @@
-module.exports = require("./dist/logger/index");
+module.exports = require("./dist/logger/index.js");

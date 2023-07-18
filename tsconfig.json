@@ -28,6 +28,7 @@
     ".*",
     "_*",
     "dist",
-    "node_modules"
+    "node_modules",
+    "tsup.config.ts"
   ]
 }
