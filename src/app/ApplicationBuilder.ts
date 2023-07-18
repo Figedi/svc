@@ -1,7 +1,6 @@
 /* eslint-disable no-underscore-dangle */
 import type { interfaces } from "inversify";
 import type { ParsedArgs } from "minimist";
-import type { Options } from "minimist-options";
 import type { ValidatorSpec } from "envalid";
 import type {
     EnvTransformFn,
@@ -26,9 +25,8 @@ import type {
 import type { TRemoteConfigFactoryResult, UnpackRemoteConfigTypes } from "./remoteConfig";
 import type { DeepMerge } from "./types/base";
 
-import appRootPath from "app-root-path";
 import { Container } from "inversify";
-import { pick, kebabCase, uniq, camelCase, once, merge, mergeWith } from "lodash";
+import { pick, kebabCase, uniq, camelCase, once, merge, mergeWith, isUndefined } from "lodash";
 import { set } from "lodash/fp";
 import { str, bool, num, host, port, url, json, cleanEnv } from "envalid";
 import { createLogger, Logger } from "../logger";
@@ -43,6 +41,8 @@ import {
 import { ShutdownHandle, ErrorHandle, REF_SYMBOLS, REF_TYPES, isTransformer } from "./types";
 import buildOptions from "minimist-options";
 import minimist from "minimist";
+import { MissingCommandArgsError } from "./errors";
+import { getRootDir, safeReadFile } from "./utils/util";
 
 export type AppPreflightFn<C, RC> = (container: RegisterFnArgs<C, RC>) => Promise<any> | any;
 
@@ -221,7 +221,7 @@ export class ApplicationBuilder<Config, RemoteConfig> {
         this.app = {
             envName,
             startedAt: new Date(),
-            rootPath: appRootPath.toString(),
+            rootPath: getRootDir(),
             version: process.env.npm_package_version,
         };
         return this as any;
@@ -238,7 +238,6 @@ export class ApplicationBuilder<Config, RemoteConfig> {
      * typically RemoteConfigValue's, which allow downstream services to subscribe to asynchronous config changes
      *
      */
-    // @todo add a generic config plugin and remove this one, it merges the config instead of remoteConfig
     public addRemoteConfig<TProjRemoteConfig>(
         remoteConfigFactory: (args: BaseRegisterFnArgs<Config>) => TRemoteConfigFactoryResult<TProjRemoteConfig>,
     ): ApplicationBuilder<Config, TProjRemoteConfig> {
@@ -257,8 +256,7 @@ export class ApplicationBuilder<Config, RemoteConfig> {
             transform: async ({ filePath, fileTransformFn }: FileTransformConfig) => {
                 const resolvedPath = typeof filePath === "function" ? filePath({ app: this.app }) : filePath;
                 // @todo guard clause for non node envs for better errors
-                const { readFile } = await import("fs/promises");
-                const fileContent = await readFile(resolvedPath);
+                const fileContent = await safeReadFile(resolvedPath);
                 if (fileTransformFn) {
                     const result = await fileTransformFn?.(fileContent);
                     return result;
@@ -439,7 +437,7 @@ export class ApplicationBuilder<Config, RemoteConfig> {
 
         const isArgvType = (v: any) => "__type" in v && v.__type === "opt";
         // in order to pass the options to yargs, we need to flatten the tree and generate a record of only yargs-compliant Options
-        const flattenedBaseArgs = reduceTree<Record<string, Options>>(baseArgs, isArgvType, (v, k) => ({
+        const flattenedBaseArgs = reduceTree<Record<string, AllOptions>>(baseArgs, isArgvType, (v, k) => ({
             [k.map(kebabCase).join("-")]: { ...v, __path: k },
         }));
 
@@ -455,13 +453,8 @@ export class ApplicationBuilder<Config, RemoteConfig> {
                 `Encounted reserved keyword in command-args, please change the arg-name to something different than '$raw' or 'command'`,
             );
         }
-        const options = buildOptions({
-            command: { type: "string" },
-            ...flattenedBaseArgs,
-        });
+        const options = buildOptions(flattenedBaseArgs);
 
-        // @todo throw on unknown args
-        // @todo implement required: true
         const convertedArgs = minimist(process.argv.slice(2), options) as Record<string, any>;
 
         /**
@@ -470,10 +463,24 @@ export class ApplicationBuilder<Config, RemoteConfig> {
          * Due to the uniqueness of camel-cased keys (see check above), this op is deterministic
          *
          */
-        const reNestedTree = Object.entries(flattenedBaseArgs).reduce(
-            (acc, [k, v]) => set((v as any).__path as string[], convertedArgs[k as keyof typeof convertedArgs])(acc),
-            {},
+        const { missingPaths, tree: reNestedTree } = Object.entries(flattenedBaseArgs).reduce(
+            (acc, [k, v]) => {
+                if (!v.__path?.length) {
+                    return acc;
+                }
+                const parsedVal = convertedArgs[k as keyof typeof convertedArgs];
+                return {
+                    missingPaths: v.required && isUndefined(parsedVal) ? [...acc.missingPaths, k] : acc.missingPaths,
+                    tree: set(v.__path, parsedVal)(acc.tree),
+                };
+            },
+
+            { tree: {} as Record<string, any>, missingPaths: [] },
         );
+
+        if (missingPaths.length) {
+            throw new MissingCommandArgsError(missingPaths);
+        }
         return {
             ...reNestedTree,
             $raw: pick(convertedArgs, Object.keys(flattenedBaseArgs)),
@@ -576,7 +583,7 @@ export class ApplicationBuilder<Config, RemoteConfig> {
     };
 
     public async run<TResult = any>(command?: string): Promise<TResult> {
-        const argv: any = minimist(process.argv.slice(2), buildOptions({ command: { type: "string" } }));
+        const argv: any = minimist(process.argv.slice(2), buildOptions({ command: { type: "string", alias: "c" } }));
 
         const commandName = (command || argv.command || this.defaultCommandName) as string | undefined;
         if (!commandName || typeof commandName !== "string") {

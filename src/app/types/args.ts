@@ -21,7 +21,7 @@ export type AllOptions = (
     | NumberArrayOption
     // Workaround for https://github.com/microsoft/TypeScript/issues/17867
     | MinimistOption
-) & { required?: boolean };
+) & { required?: boolean; __path?: string[] };
 
 type InferredOptionTypePrimitive<O extends AllOptions> = O extends { default: infer D }
     ? IsRequiredOrHasDefault<O> extends true
