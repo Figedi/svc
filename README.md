@@ -6,6 +6,10 @@ Base svc-framework for µ-services.
 ## TODO
 Replace them with non nodejs related versions for edge compat
 - axios <-- replace with isomorphic fetch
+- split k8s + app + utils + interfaces into separate packages, use turbo for management
+- make jsondecryptor optional in remoteConfig
+- update readme
+- remoteConfigFactory infer more default values from app-builder (e.g. serviceName, logger, poll, etc)
 ## Features
 
 This framework is the base for most of my µ-services. Some functionalities include:

@@ -22,6 +22,7 @@ export interface RequiredPollingOpts {
 }
 
 export interface PollingOpts {
+    // @todo add auth / headers for endpoint
     acceptedRange?: AcceptedVersionRange;
     prefix?: string;
 

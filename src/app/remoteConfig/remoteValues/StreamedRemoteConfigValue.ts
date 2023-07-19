@@ -1,8 +1,11 @@
-import { Observable, Subscription } from "rxjs";
-import { map } from "rxjs/operators";
+import type { Observable, Subscription } from "rxjs";
 import type { ServiceWithLifecycleHandlers } from "../../types/service";
+import type { IStreamedRemoteConfigValue } from "./types";
+import { map } from "rxjs/operators";
 
-export class StreamedRemoteConfigValue<ParentSchema, Schema = ParentSchema> implements ServiceWithLifecycleHandlers {
+export class StreamedRemoteConfigValue<ParentSchema, Schema = ParentSchema>
+    implements ServiceWithLifecycleHandlers, IStreamedRemoteConfigValue<ParentSchema, Schema>
+{
     private subscription?: Subscription;
 
     private output$!: Observable<Schema>;

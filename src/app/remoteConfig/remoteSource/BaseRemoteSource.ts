@@ -40,7 +40,7 @@ export abstract class BaseRemoteSource<Schema> {
 
     protected validate(data: unknown): data is Schema {
         try {
-            return this.validator!.validate(this.rootSchema! as any, data);
+            return this.validator!.validate(this.rootSchema!, data);
         } catch (e) {
             if (e instanceof SchemaValidationError) {
                 return false;

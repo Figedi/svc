@@ -7,14 +7,14 @@ export type Stub<T> = {
     [k in keyof T]: any;
 };
 
-export class TestApplicationBuilder<Config, RemoteConfig> {
+export class TestApplicationBuilder<Config> {
     private stubs: Record<string, Stub<any>> = {};
 
-    public static mount<C, R>(appBuilder: ApplicationBuilder<C, R>): TestApplicationBuilder<C, R> {
+    public static mount<C>(appBuilder: ApplicationBuilder<C>): TestApplicationBuilder<C> {
         return new TestApplicationBuilder(appBuilder);
     }
 
-    private constructor(private appBuilder: ApplicationBuilder<Config, RemoteConfig>) {}
+    private constructor(private appBuilder: ApplicationBuilder<Config>) {}
 
     private getAppBuilderProp = <T>(propName: string): T => {
         if (!(propName in this.appBuilder)) {
@@ -25,8 +25,8 @@ export class TestApplicationBuilder<Config, RemoteConfig> {
 
     public rebindAsStub<T>(
         name: string,
-        registerFn: (args: RegisterFnArgs<Config, RemoteConfig>) => Stub<T>,
-    ): TestApplicationBuilder<Config, RemoteConfig> {
+        registerFn: (args: RegisterFnArgs<Config>) => Stub<T>,
+    ): TestApplicationBuilder<Config> {
         this.getAppBuilderProp<Container>("container")
             .rebind(name)
             .toDynamicValue(context => {
@@ -48,11 +48,11 @@ export class TestApplicationBuilder<Config, RemoteConfig> {
 
     public overwriteConfig<C>(
         overwriteConfigFn: (config: UnpackTransformConfigTypes<Config>) => C,
-    ): TestApplicationBuilder<C, RemoteConfig> {
+    ): TestApplicationBuilder<C> {
         const newConfig = overwriteConfigFn(this.getAppBuilderProp<UnpackTransformConfigTypes<Config>>("config"));
 
         this.appBuilder = this.appBuilder.setEnv(() => <any>newConfig);
-        return this as any as TestApplicationBuilder<C, RemoteConfig>;
+        return this as any as TestApplicationBuilder<C>;
     }
 
     public getStub<StubType>(stubName: string): StubType {
@@ -66,9 +66,7 @@ export class TestApplicationBuilder<Config, RemoteConfig> {
         return this.stubs;
     }
 
-    public async runInContainer(
-        runnable: (args: RegisterFnArgs<Config, RemoteConfig>) => void | Promise<void>,
-    ): Promise<void> {
+    public async runInContainer(runnable: (args: RegisterFnArgs<Config>) => void | Promise<void>): Promise<void> {
         await Promise.all(
             this.getAppBuilderProp<any[]>("servicesWithLifecycleHandlers").map(svc => svc.preflight && svc.preflight()),
         );

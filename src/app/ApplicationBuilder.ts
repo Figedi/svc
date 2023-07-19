@@ -21,15 +21,24 @@ import type {
     AnyTransformStrict,
     InferredOptionType,
     AllOptions,
+    DynamicOnceTransformConfig,
+    DynamicStreamedTransformConfig,
+    DynamicOnceTransformFn,
+    DynamicStreamedTransformFn,
 } from "./types";
-import type { TRemoteConfigFactoryResult, UnpackRemoteConfigTypes } from "./remoteConfig";
+import {
+    type BaseRemoteConfig,
+    type RemoteDependencyArgs,
+    OnceRemoteConfigValue,
+    StreamedRemoteConfigValue,
+} from "./remoteConfig";
 import type { DeepMerge } from "./types/base";
 
 import { Container } from "inversify";
-import { pick, kebabCase, uniq, camelCase, once, merge, mergeWith, isUndefined } from "lodash";
+import { pick, kebabCase, uniq, camelCase, once as _once, merge, mergeWith, isUndefined } from "lodash";
 import { set } from "lodash/fp";
 import { str, bool, num, host, port, url, json, cleanEnv } from "envalid";
-import { createLogger, Logger } from "../logger";
+import { createLogger, type Logger } from "../logger";
 import {
     sleep,
     remapTree,
@@ -43,18 +52,18 @@ import buildOptions from "minimist-options";
 import minimist from "minimist";
 import { MissingCommandArgsError } from "./errors";
 import { getRootDir, safeReadFile } from "./utils/util";
+import { share } from "rxjs";
+import { RemoteConfigHandler } from "./remoteConfig/RemoteConfigHandler";
 
-export type AppPreflightFn<C, RC> = (container: RegisterFnArgs<C, RC>) => Promise<any> | any;
+export type AppPreflightFn<C> = (container: RegisterFnArgs<C>) => Promise<any> | any;
 
-export type ErrorHandlerFn<C, RC> = (args: RegisterFnArgs<C, RC>, e?: Error) => ErrorHandle | Promise<ErrorHandle>;
-export type ShutdownHandlerFn<C, RC> = (
-    args: RegisterFnArgs<C, RC>,
+export type ErrorHandlerFn<C> = (args: RegisterFnArgs<C>, e?: Error) => ErrorHandle | Promise<ErrorHandle>;
+export type ShutdownHandlerFn<C> = (
+    args: RegisterFnArgs<C>,
     reason?: string,
 ) => ShutdownHandle | Promise<ShutdownHandle>;
 
-export interface RegisterFnArgs<Config, RemoteConfig> extends ResolveRegisterFnArgs<Config> {
-    remoteConfig: UnpackRemoteConfigTypes<RemoteConfig>;
-}
+export interface RegisterFnArgs<Config> extends ResolveRegisterFnArgs<Config> {}
 
 const env: EnvTransformFn = (transformFn, defaultValue) => ({
     transformFn,
@@ -75,6 +84,18 @@ const file: FileTransformFn = (filePath, fileTransformFn) => ({
     fileTransformFn,
     __type: REF_TYPES.FILE,
     __sym: REF_SYMBOLS.FILE,
+});
+
+const once: DynamicOnceTransformFn<any> = propGetter => ({
+    propGetter,
+    __type: REF_TYPES.DYNAMIC_ONCE,
+    __sym: REF_SYMBOLS.DYNAMIC_ONCE,
+});
+
+const streamed: DynamicStreamedTransformFn<any> = propGetter => ({
+    propGetter,
+    __type: REF_TYPES.DYNAMIC_STREAMED,
+    __sym: REF_SYMBOLS.DYNAMIC_STREAMED,
 });
 
 const $env: EnvalidTransformer = {
@@ -98,9 +119,9 @@ const defaultAppBuilderConfig: AppBuilderConfig = {
     loggerFactory: createLogger,
 };
 
-export type GetAppConfig<T> = T extends ApplicationBuilder<infer V, never>
+export type GetAppConfig<T> = T extends ApplicationBuilder<infer V>
     ? V
-    : T extends ApplicationBuilder<infer K, any>
+    : T extends ApplicationBuilder<infer K>
     ? K
     : never;
 
@@ -120,24 +141,22 @@ export type GetAppConfig<T> = T extends ApplicationBuilder<infer V, never>
  * - error-/shutdown-handlers: The builder has optional error/shutdown-handlers, e.g. for additional shutdown logic
  *
  */
-export class ApplicationBuilder<Config, RemoteConfig> {
+export class ApplicationBuilder<Config> {
     private rootLogger!: Logger;
     private defaultCommandName?: string;
     private app!: AppConfig;
-    private errorHandlers: ErrorHandlerFn<Config, RemoteConfig>[] = [];
-    private shutdownHandlers: ShutdownHandlerFn<Config, RemoteConfig>[] = [];
-    private preflightFns: AppPreflightFn<Config, RemoteConfig>[] = [];
+    private errorHandlers: ErrorHandlerFn<Config>[] = [];
+    private shutdownHandlers: ShutdownHandlerFn<Config>[] = [];
+    private preflightFns: AppPreflightFn<Config>[] = [];
     private commandReferences: string[] = [];
     private appBuilderConfig!: AppBuilderConfig;
 
     public container = new Container();
     public config: Config = {} as Config;
-    public remoteConfig: RemoteConfig = {} as RemoteConfig;
     public servicesWithLifecycleHandlers: ServiceWithLifecycleHandlers[] = [];
 
-    static create = <RC = never, C = never>(
-        config: Partial<AppBuilderConfig> = defaultAppBuilderConfig,
-    ): ApplicationBuilder<C, RC> => new ApplicationBuilder<C, RC>(config);
+    static create = <C = never>(config: Partial<AppBuilderConfig> = defaultAppBuilderConfig): ApplicationBuilder<C> =>
+        new ApplicationBuilder<C>(config);
 
     private constructor(appConfig: Partial<AppBuilderConfig>) {
         this.reconfigure({ appConfig });
@@ -149,7 +168,7 @@ export class ApplicationBuilder<Config, RemoteConfig> {
         logger: this.rootLogger,
     });
 
-    private buildResolveArgs = (container: interfaces.Container): RegisterFnArgs<Config, RemoteConfig> => ({
+    private buildResolveArgs = (container: interfaces.Container): RegisterFnArgs<Config> => ({
         resolve: <T>(serviceIdentifier: interfaces.ServiceIdentifier<T>): T => {
             try {
                 return container.get<T>(serviceIdentifier);
@@ -161,7 +180,6 @@ export class ApplicationBuilder<Config, RemoteConfig> {
                 throw e;
             }
         },
-        remoteConfig: this.remoteConfig as any,
         ...this.buildBaseResolveArgs(),
     });
 
@@ -169,22 +187,22 @@ export class ApplicationBuilder<Config, RemoteConfig> {
         appConfig: Partial<AppBuilderConfig>;
         env?: never;
         mode?: "merge" | "overwrite";
-    }): ApplicationBuilder<Config, RemoteConfig>;
+    }): ApplicationBuilder<Config>;
     public reconfigure<TConf extends Record<string, any>>(opts: {
         appConfig?: Partial<AppBuilderConfig>;
         env: EnvFn<TConf>;
         mode?: "merge";
-    }): ApplicationBuilder<DeepMerge<Config, TConf, AnyTransformStrict<any>>, RemoteConfig>;
+    }): ApplicationBuilder<DeepMerge<Config, TConf, AnyTransformStrict<any>>>;
     public reconfigure<TConf extends Record<string, any>>(opts: {
         appConfig?: Partial<AppBuilderConfig>;
         env: EnvFn<TConf>;
         mode?: "overwrite";
-    }): ApplicationBuilder<TConf, RemoteConfig>;
+    }): ApplicationBuilder<TConf>;
     public reconfigure<TConf extends Record<string, any>>(opts: {
         appConfig?: Partial<AppBuilderConfig>;
         env?: EnvFn<TConf>;
         mode?: "merge" | "overwrite";
-    }): ApplicationBuilder<DeepMerge<Config, TConf, AnyTransformStrict<any>>, RemoteConfig> {
+    }): ApplicationBuilder<DeepMerge<Config, TConf, AnyTransformStrict<any>>> {
         if (opts.appConfig) {
             this.appBuilderConfig = merge(
                 {},
@@ -238,16 +256,66 @@ export class ApplicationBuilder<Config, RemoteConfig> {
      * typically RemoteConfigValue's, which allow downstream services to subscribe to asynchronous config changes
      *
      */
-    public addRemoteConfig<TProjRemoteConfig>(
-        remoteConfigFactory: (args: BaseRegisterFnArgs<Config>) => TRemoteConfigFactoryResult<TProjRemoteConfig>,
-    ): ApplicationBuilder<Config, TProjRemoteConfig> {
+    public addDynamicConfig<TRemoteConfig, TProjRemoteConfig>(
+        remoteConfigFn: (args: BaseRegisterFnArgs<Config>) => BaseRemoteConfig<TRemoteConfig, TProjRemoteConfig>,
+    ): ApplicationBuilder<DeepMerge<Config, TProjRemoteConfig, AnyTransformStrict<any>>> {
         const args = this.buildBaseResolveArgs();
-        const { remoteConfig, lifecycleArtefacts } = remoteConfigFactory(args);
-        lifecycleArtefacts.forEach(artefact => this.servicesWithLifecycleHandlers.push(artefact));
 
-        this.remoteConfig = remoteConfig as any; // ts-cannot infer the projected type here
+        const { projections, source, reloading } = remoteConfigFn(args);
 
-        return this as any as ApplicationBuilder<Config, TProjRemoteConfig>;
+        if (serviceWithPreflightOrShutdown(source)) {
+            this.servicesWithLifecycleHandlers.push(source);
+        }
+
+        if (!(reloading || projections)) {
+            throw new Error(`Please define at least 'projections' or 'reloading' for remote-config`);
+        }
+
+        const stream$ = source.stream().pipe(share());
+
+        if (reloading && reloading.reactsOn) {
+            const handler = new RemoteConfigHandler(stream$, reloading.reactsOn, reloading.strategy.execute);
+            if (serviceWithPreflightOrShutdown(handler)) {
+                this.servicesWithLifecycleHandlers.push(handler);
+            }
+        }
+        const projectionConfig = projections({ once, streamed } as RemoteDependencyArgs<TRemoteConfig>);
+
+        const projectedRemoteConfig = remapTree(
+            projectionConfig,
+            {
+                // eslint-disable-next-line no-underscore-dangle
+                predicate: value => !!value && value.__type === REF_TYPES.DYNAMIC_ONCE,
+                transform: ({ propGetter }: DynamicOnceTransformConfig<TRemoteConfig>) => {
+                    const remoteConfigValue = new OnceRemoteConfigValue(stream$, propGetter);
+                    if (serviceWithPreflightOrShutdown(remoteConfigValue)) {
+                        this.servicesWithLifecycleHandlers.push(remoteConfigValue);
+                    }
+                    return remoteConfigValue;
+                },
+            },
+            {
+                // eslint-disable-next-line no-underscore-dangle
+                predicate: value => !!value && value.__type === REF_TYPES.DYNAMIC_STREAMED,
+                transform: ({ propGetter }: DynamicStreamedTransformConfig<TRemoteConfig>) => {
+                    const remoteConfigValue = new StreamedRemoteConfigValue(stream$, propGetter);
+                    if (serviceWithPreflightOrShutdown(remoteConfigValue)) {
+                        this.servicesWithLifecycleHandlers.push(remoteConfigValue);
+                    }
+                    return remoteConfigValue;
+                },
+            },
+        ) as TProjRemoteConfig;
+
+        // @todo test this, idea is to not go further with merging once the right hand side is a transformer definition
+        this.config = mergeWith({}, this.config, projectedRemoteConfig, obj => {
+            if (isTransformer(obj)) {
+                return obj;
+            }
+            return undefined;
+        });
+
+        return this as any as ApplicationBuilder<DeepMerge<Config, TProjRemoteConfig, AnyTransformStrict<any>>>;
     }
 
     private configTransformers: TreeNodeTransformerConfig[] = [
@@ -314,11 +382,11 @@ export class ApplicationBuilder<Config, RemoteConfig> {
      *
      *
      */
-    public setEnv<C extends Record<string, any>>(envFn: EnvFn<C>): ApplicationBuilder<C, RemoteConfig> {
+    public setEnv<C extends Record<string, any>>(envFn: EnvFn<C>): ApplicationBuilder<C> {
         // @todo somehow allow async transformers, this however needs async DI injection ? (or use the fact that we have lifecycles, so config is materialized before resolution phase)
         this.config = remapTree(envFn({ $env, app: this.app }), ...this.configTransformers);
 
-        return this as any as ApplicationBuilder<C, RemoteConfig>;
+        return this as any as ApplicationBuilder<C>;
     }
 
     /**
@@ -327,7 +395,7 @@ export class ApplicationBuilder<Config, RemoteConfig> {
      * or lead to service-shutdown
      *
      */
-    public onError(onError: ErrorHandlerFn<Config, RemoteConfig>): ApplicationBuilder<Config, RemoteConfig> {
+    public onError(onError: ErrorHandlerFn<Config>): ApplicationBuilder<Config> {
         this.errorHandlers.push(onError);
         return this;
     }
@@ -340,7 +408,7 @@ export class ApplicationBuilder<Config, RemoteConfig> {
      * If one handle indicates FORCE, all other handlers are ignored
      *
      */
-    public onShutdown(onShutdown: ShutdownHandlerFn<Config, RemoteConfig>): ApplicationBuilder<Config, RemoteConfig> {
+    public onShutdown(onShutdown: ShutdownHandlerFn<Config>): ApplicationBuilder<Config> {
         this.shutdownHandlers.push(onShutdown);
         return this;
     }
@@ -352,8 +420,8 @@ export class ApplicationBuilder<Config, RemoteConfig> {
      */
     public registerDependency<T>(
         name: string,
-        registerFn: (args: RegisterFnArgs<Config, RemoteConfig>) => T extends Promise<any> ? never : T,
-    ): ApplicationBuilder<Config, RemoteConfig> {
+        registerFn: (args: RegisterFnArgs<Config>) => T extends Promise<any> ? never : T,
+    ): ApplicationBuilder<Config> {
         this.container
             .bind(name)
 
@@ -385,8 +453,8 @@ export class ApplicationBuilder<Config, RemoteConfig> {
      */
     public registerProvider<T>(
         name: string,
-        registerFn: (args: RegisterFnArgs<Config, RemoteConfig>) => Provider<T>,
-    ): ApplicationBuilder<Config, RemoteConfig> {
+        registerFn: (args: RegisterFnArgs<Config>) => Provider<T>,
+    ): ApplicationBuilder<Config> {
         this.container.bind(name).toProvider(context => registerFn(this.buildResolveArgs(context.container)));
         return this;
     }
@@ -398,8 +466,8 @@ export class ApplicationBuilder<Config, RemoteConfig> {
      */
     public registerCommand(
         name: string,
-        registerFn: (args: RegisterFnArgs<Config, RemoteConfig>) => Command | Promise<Command>,
-    ): ApplicationBuilder<Config, RemoteConfig> {
+        registerFn: (args: RegisterFnArgs<Config>) => Command | Promise<Command>,
+    ): ApplicationBuilder<Config> {
         this.commandReferences.push(name);
 
         return this.registerDependency<any>(name, registerFn);
@@ -410,8 +478,8 @@ export class ApplicationBuilder<Config, RemoteConfig> {
      */
     public registerDefaultCommand(
         name: string,
-        registerFn: (args: RegisterFnArgs<Config, RemoteConfig>) => Command | Promise<Command>,
-    ): ApplicationBuilder<Config, RemoteConfig> {
+        registerFn: (args: RegisterFnArgs<Config>) => Command | Promise<Command>,
+    ): ApplicationBuilder<Config> {
         this.defaultCommandName = name;
 
         return this.registerCommand(name, registerFn);
@@ -420,7 +488,7 @@ export class ApplicationBuilder<Config, RemoteConfig> {
     /**
      * Registers a preflight-function which is executed prior to the command-execution
      */
-    public registerPreflightFn(fn: AppPreflightFn<Config, RemoteConfig>): ApplicationBuilder<Config, RemoteConfig> {
+    public registerPreflightFn(fn: AppPreflightFn<Config>): ApplicationBuilder<Config> {
         this.preflightFns.push(fn);
         return this;
     }
@@ -499,7 +567,7 @@ export class ApplicationBuilder<Config, RemoteConfig> {
         return commandResult;
     }
 
-    private shutdown = once(async (reason: string, exitCode = 1, forceExit = false): Promise<void> => {
+    private shutdown = _once(async (reason: string, exitCode = 1, forceExit = false): Promise<void> => {
         if (!this.servicesWithLifecycleHandlers.length) {
             return;
         }

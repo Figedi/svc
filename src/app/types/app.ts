@@ -5,6 +5,7 @@ import type { ParsedArgs } from "minimist";
 import type { Logger } from "../../logger";
 import type { Primitive } from "./base";
 import type { ArgvParsingParams, AddOptionType } from "./args";
+import type { IOnceRemoteConfigValue, IStreamedRemoteConfigValue } from "../remoteConfig/remoteValues/types";
 
 export enum ErrorHandle {
     IGNORE = "IGNORE",
@@ -53,11 +54,6 @@ export type EnvFn<Config extends Record<string, any>> = (
     envArgs: DependencyArgs,
 ) => AddTransformConfigToPrimitives<Config>;
 
-export type FileTransformFn = <ReturnValue = Buffer>(
-    filePath: string | ((env: Omit<DependencyArgs, "$env">) => string),
-    fileTransformFn?: (value: Buffer) => ReturnValue,
-) => FileTransformConfig<ReturnValue>;
-
 export type EnvalidTransformer = {
     any: EnvTransformFn;
     ref: RefTransformFn;
@@ -75,12 +71,16 @@ export const REF_TYPES = {
     ENV: 0,
     REF: 1,
     FILE: 2,
+    DYNAMIC_ONCE: 3,
+    DYNAMIC_STREAMED: 4,
 } as const;
 
 export const REF_SYMBOLS = {
     ENV: Symbol.for("@figedi/svc-transform-env"),
     REF: Symbol.for("@figedi/svc-transform-ref"),
     FILE: Symbol.for("@figedi/svc-transform-file"),
+    DYNAMIC_ONCE: Symbol.for("@figedi/svc-transform-dynamic-once"),
+    DYNAMIC_STREAMED: Symbol.for("@figedi/svc-transform-dynamic-streamed"),
 } as const;
 
 export type EnvTransformFn = <ReturnValue = string>(
@@ -92,6 +92,19 @@ export type RefTransformFn = <ReturnValue = string>(
     referenceValue: string,
     refTransformFn?: (value?: string) => ReturnValue,
 ) => RefTransformConfig<ReturnValue>;
+
+export type FileTransformFn = <ReturnValue = Buffer>(
+    filePath: string | ((env: Omit<DependencyArgs, "$env">) => string),
+    fileTransformFn?: (value: Buffer) => ReturnValue,
+) => FileTransformConfig<ReturnValue>;
+
+export type DynamicOnceTransformFn<RemoteConfig> = <ReturnValue = string>(
+    propGetter?: (config: RemoteConfig) => ReturnValue,
+) => DynamicOnceTransformConfig<RemoteConfig, ReturnValue>;
+
+export type DynamicStreamedTransformFn<RemoteConfig> = <ReturnValue = string>(
+    propGetter?: (config: RemoteConfig) => ReturnValue,
+) => DynamicStreamedTransformConfig<RemoteConfig, ReturnValue>;
 
 export interface EnvTransformConfig<ReturnValue = string> {
     __type: typeof REF_TYPES.ENV;
@@ -114,17 +127,45 @@ export interface FileTransformConfig<ReturnValue = Buffer> {
     fileTransformFn?: (fileBuffer: Buffer) => ReturnValue | Promise<ReturnValue>;
 }
 
+export interface DynamicOnceTransformConfig<Config, ReturnValue = string> {
+    __type: typeof REF_TYPES.DYNAMIC_ONCE;
+    __sym: symbol;
+    propGetter?: (config: Config) => ReturnValue;
+}
+
+export interface DynamicStreamedTransformConfig<Config, ReturnValue = string> {
+    __type: typeof REF_TYPES.DYNAMIC_STREAMED;
+    __sym: symbol;
+    propGetter?: (config: Config) => ReturnValue;
+}
+
 export type UnpackEnvConfig<T> = T extends EnvTransformConfig<infer V> ? V : never;
 export type UnpackRefConfig<T> = T extends RefTransformConfig<infer V> ? V : never;
 export type UnpackFileConfig<T> = T extends FileTransformConfig<infer V> ? Promise<V> : never;
 export type UnpackValidatorSpec<T> = T extends ValidatorSpec<infer V> ? V : never;
-
+export type UnpackDynamicOnceConfig<T> = T extends DynamicOnceTransformConfig<infer V, infer K>
+    ? IOnceRemoteConfigValue<V, K>
+    : never;
+export type UnpackDynamicStreamedConfig<T> = T extends DynamicStreamedTransformConfig<infer V, infer K>
+    ? IStreamedRemoteConfigValue<V, K>
+    : never;
 // this type tries to unpack the types one by one. If none of the configs match, it returns never
-type Unpacked<T> = UnpackRefConfig<T> | UnpackEnvConfig<T> | UnpackFileConfig<T> | UnpackValidatorSpec<T>;
+type Unpacked<T> =
+    | UnpackRefConfig<T>
+    | UnpackEnvConfig<T>
+    | UnpackFileConfig<T>
+    | UnpackValidatorSpec<T>
+    | UnpackDynamicOnceConfig<T>
+    | UnpackDynamicStreamedConfig<T>;
 
-export type InternalTransform<T> = EnvTransformConfig<T> | RefTransformConfig<T> | FileTransformConfig<T>;
-export type AnyTransformStrict<T> = InternalTransform<T> | ValidatorSpec<T>;
-export type AnyTransform<T> = T | AnyTransformStrict<T>;
+export type InternalTransform<T, TSchema = any> =
+    | EnvTransformConfig<T>
+    | RefTransformConfig<T>
+    | FileTransformConfig<T>
+    | DynamicOnceTransformConfig<TSchema, T>
+    | DynamicStreamedTransformConfig<TSchema, T>;
+export type AnyTransformStrict<T, TSchema = any> = InternalTransform<T, TSchema> | ValidatorSpec<T>;
+export type AnyTransform<T, TSchema = any> = T | AnyTransformStrict<T, TSchema>;
 
 export const isTransformer = (obj: any): obj is InternalTransform<any> =>
     // eslint-disable-next-line no-underscore-dangle
@@ -162,12 +203,12 @@ export type UnpackTransformConfigTypes<T> = T extends AnyTransformStrict<any>
     : T;
 
 // typescript does weird things with booleans by converting it tu true | false, which then breaks inferrence
-export type AddTransformConfigToPrimitives<T> = T extends Primitive | Date
-    ? AnyTransform<T>
+export type AddTransformConfigToPrimitives<T, TSchema = any> = T extends Primitive | Date
+    ? AnyTransform<T, TSchema>
     : T extends boolean
-    ? AnyTransform<boolean>
+    ? AnyTransform<boolean, TSchema>
     : T extends object // eslint-disable-line @typescript-eslint/ban-types
-    ? { [P in keyof T]: AddTransformConfigToPrimitives<T[P]> }
+    ? { [P in keyof T]: AddTransformConfigToPrimitives<T[P], TSchema> }
     : T;
 
 export type AppConfig = {

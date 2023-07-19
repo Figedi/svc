@@ -4,9 +4,9 @@ import { TestApplicationBuilder } from "../TestApplicationBuilder";
 import { RegisterFnArgs } from "../ApplicationBuilder";
 import { sleep } from "../utils";
 
-export const assertInTestAppBuilder = async <C, RC>(
-    testApp: TestApplicationBuilder<C, RC>,
-    runnableAssertionFn: (args: RegisterFnArgs<C, RC>) => void | Promise<void>,
+export const assertInTestAppBuilder = async <C>(
+    testApp: TestApplicationBuilder<C>,
+    runnableAssertionFn: (args: RegisterFnArgs<C>) => void | Promise<void>,
     timeout = 5000,
 ): Promise<void> => {
     await Promise.race([
@@ -17,8 +17,8 @@ export const assertInTestAppBuilder = async <C, RC>(
     ]);
 };
 
-export const assertErrorInTestAppBuilder = async <C, RC>(
-    testApp: TestApplicationBuilder<C, RC>,
+export const assertErrorInTestAppBuilder = async <C>(
+    testApp: TestApplicationBuilder<C>,
     assertionFn: (e: Error) => void,
 ): Promise<void> => {
     try {

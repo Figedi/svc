@@ -22,7 +22,6 @@ import { ReactsOnFn } from "./types";
 import { InvalidConfigWithoutDataError, MaxRetriesWithoutDataError } from "./remoteSource";
 import { sleep } from "../utils";
 import { assertInTestAppBuilder, assertErrorInTestAppBuilder } from "../shared.specFiles/helpers";
-import { remoteConfigFactory } from "./setRemoteConfig";
 
 const REMOTE_CONFIG_ENDPOINT = "http://localhost:8080"; // example endpoint, will never be executed due to nock
 
@@ -45,33 +44,31 @@ const createTestApplicationBuilder = (
             serviceName: "example-svc",
             environmentName: "dev",
         }))
-        .addRemoteConfig(({ logger, config }) =>
-            remoteConfigFactory({
-                source: new PollingRemoteSource({
-                    logger,
-                    schema: getRootSchema(),
-                    schemaBaseDir: SCHEMA_BASE_DIR,
-                    serviceName: config.serviceName,
-                    fallback: initialValue,
-                    jsonDecryptor: new SopsClient(KmsKeyDecryptor.createWithKmsClient(kmsClient)),
-                    poll: {
-                        pollingIntervalMs,
-                        maxTriesWithoutValue: 2,
-                        backoffBaseMs: 100,
-                        endpoint: REMOTE_CONFIG_ENDPOINT,
-                        version: getVersion(),
-                    },
-                }),
-                reloading: {
-                    reactsOn,
-                    strategy: createUpdateStrategyStub(),
+        .addDynamicConfig(({ logger, config }) => ({
+            source: new PollingRemoteSource({
+                logger,
+                schema: getRootSchema(),
+                schemaBaseDir: SCHEMA_BASE_DIR,
+                serviceName: config.serviceName,
+                fallback: initialValue,
+                jsonDecryptor: new SopsClient(KmsKeyDecryptor.createWithKmsClient(kmsClient)),
+                poll: {
+                    pollingIntervalMs,
+                    maxTriesWithoutValue: 2,
+                    backoffBaseMs: 100,
+                    endpoint: REMOTE_CONFIG_ENDPOINT,
+                    version: getVersion(),
                 },
-                projections: ({ once, streamed }) => ({
-                    onceValue: once(PROJECTIONS.logLevel),
-                    streamedValue: streamed(PROJECTIONS.logLevel),
-                }),
             }),
-        );
+            reloading: {
+                reactsOn,
+                strategy: createUpdateStrategyStub(),
+            },
+            projections: ({ once, streamed }) => ({
+                onceValue: once(PROJECTIONS.logLevel),
+                streamedValue: streamed(PROJECTIONS.logLevel),
+            }),
+        }));
 
     return {
         app: appBuilder,
@@ -137,8 +134,8 @@ describe("RemoteConfig", function RemoteConfigTest() {
                     .get(/api\/v1\/configs/)
                     .reply(500);
 
-                await assertInTestAppBuilder(testApp, async ({ remoteConfig }) => {
-                    expect(typeof (await remoteConfig.onceValue.get())).to.equal("string");
+                await assertInTestAppBuilder(testApp, async ({ config }) => {
+                    expect(typeof (await config.onceValue.get())).to.equal("string");
                 });
                 scope.done(); // will throw if not called
             });
@@ -150,8 +147,8 @@ describe("RemoteConfig", function RemoteConfigTest() {
                     .get(/api\/v1\/configs/)
                     .reply(200, responses.inCorrectValue);
 
-                await assertInTestAppBuilder(testApp, async ({ remoteConfig }) => {
-                    expect(await remoteConfig.onceValue.get()).to.equal(PROJECTIONS.logLevel(values.initial));
+                await assertInTestAppBuilder(testApp, async ({ config }) => {
+                    expect(await config.onceValue.get()).to.equal(PROJECTIONS.logLevel(values.initial));
                 });
                 scope.done(); // will throw if not called
             });
@@ -163,8 +160,8 @@ describe("RemoteConfig", function RemoteConfigTest() {
                     .get(/api\/v1\/configs/)
                     .reply(200, responses.correctValueOnce);
 
-                await assertInTestAppBuilder(testApp, async ({ remoteConfig }) => {
-                    expect(await remoteConfig.onceValue.get()).to.equal(PROJECTIONS.logLevel(values.correctValueOnce));
+                await assertInTestAppBuilder(testApp, async ({ config }) => {
+                    expect(await config.onceValue.get()).to.equal(PROJECTIONS.logLevel(values.correctValueOnce));
                 });
                 scope.done(); // will throw if not called
             });
@@ -180,10 +177,10 @@ describe("RemoteConfig", function RemoteConfigTest() {
                     .get(/api\/v1\/configs/)
                     .reply(500);
 
-                await assertInTestAppBuilder(testApp, async ({ remoteConfig }) => {
-                    expect(await remoteConfig.onceValue.get()).to.equal(PROJECTIONS.logLevel(values.correctValueOnce));
+                await assertInTestAppBuilder(testApp, async ({ config }) => {
+                    expect(await config.onceValue.get()).to.equal(PROJECTIONS.logLevel(values.correctValueOnce));
                     await sleep(500, true);
-                    expect(await remoteConfig.onceValue.get()).to.equal(PROJECTIONS.logLevel(values.correctValueOnce));
+                    expect(await config.onceValue.get()).to.equal(PROJECTIONS.logLevel(values.correctValueOnce));
                 });
                 scope.done(); // will throw if not called
             });
@@ -197,10 +194,10 @@ describe("RemoteConfig", function RemoteConfigTest() {
                     .get(/api\/v1\/configs/)
                     .reply(200, responses.inCorrectValue);
 
-                await assertInTestAppBuilder(testApp, async ({ remoteConfig }) => {
-                    expect(await remoteConfig.onceValue.get()).to.equal(PROJECTIONS.logLevel(values.correctValueOnce));
+                await assertInTestAppBuilder(testApp, async ({ config }) => {
+                    expect(await config.onceValue.get()).to.equal(PROJECTIONS.logLevel(values.correctValueOnce));
                     await sleep(500, true);
-                    expect(await remoteConfig.onceValue.get()).to.equal(PROJECTIONS.logLevel(values.correctValueOnce));
+                    expect(await config.onceValue.get()).to.equal(PROJECTIONS.logLevel(values.correctValueOnce));
                 });
                 scope.done(); // will throw if not called
             });
@@ -214,8 +211,8 @@ describe("RemoteConfig", function RemoteConfigTest() {
                 .get(/api\/v1\/configs/)
                 .reply(200, responses.initial);
 
-            await assertInTestAppBuilder(testApp, async ({ remoteConfig }) => {
-                expect(await remoteConfig.onceValue.get()).to.equal(PROJECTIONS.logLevel(values.initial));
+            await assertInTestAppBuilder(testApp, async ({ config }) => {
+                expect(await config.onceValue.get()).to.equal(PROJECTIONS.logLevel(values.initial));
             });
             scope.done(); // will throw if not called
         });
@@ -226,8 +223,8 @@ describe("RemoteConfig", function RemoteConfigTest() {
                 .get(/api\/v1\/configs/)
                 .reply(500);
 
-            await assertInTestAppBuilder(testApp, async ({ remoteConfig }) => {
-                expect(await remoteConfig.onceValue.get()).to.equal(PROJECTIONS.logLevel(values.initial));
+            await assertInTestAppBuilder(testApp, async ({ config }) => {
+                expect(await config.onceValue.get()).to.equal(PROJECTIONS.logLevel(values.initial));
             });
             scope.done(); // will throw if not called
         });
@@ -246,9 +243,9 @@ describe("RemoteConfig", function RemoteConfigTest() {
 
             await assertInTestAppBuilder(
                 testApp,
-                async ({ remoteConfig }) => {
+                async ({ config }) => {
                     // subscribes to the stream until it finds the changed projection, which might come eventually
-                    const streamedValue = await remoteConfig.streamedValue.stream().pipe(take(1)).toPromise();
+                    const streamedValue = await config.streamedValue.stream().pipe(take(1)).toPromise();
 
                     expect(streamedValue).to.eq("streamed-debug");
                 },
@@ -268,8 +265,8 @@ describe("RemoteConfig", function RemoteConfigTest() {
                 .get(/api\/v1\/configs/)
                 .reply(200, responses.initial);
 
-            await assertInTestAppBuilder(testApp, async ({ remoteConfig }) => {
-                expect(await remoteConfig.onceValue.get()).to.equal(PROJECTIONS.logLevel(values.initial));
+            await assertInTestAppBuilder(testApp, async ({ config }) => {
+                expect(await config.onceValue.get()).to.equal(PROJECTIONS.logLevel(values.initial));
             });
             scope.done(); // will throw if not called
 
