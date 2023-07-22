@@ -584,7 +584,9 @@ export class ApplicationBuilder<Config> {
     }
 
     private shutdown = _once(async (reason: string, exitCode = 1, forceExit = false): Promise<void> => {
+        // @todo this is wrong, its just HAX for the specs to not call process.exit i guess
         if (!this.servicesWithLifecycleHandlers.length) {
+            this.rootLogger.info({ reason }, `Successfully shut down all services. Goodbye 👋`);
             return;
         }
         if (forceExit && this.appBuilderConfig.exitAfterRun) {
@@ -604,12 +606,10 @@ export class ApplicationBuilder<Config> {
                 Promise.all(this.servicesWithLifecycleHandlers.map(svc => svc.shutdown && svc.shutdown())),
             ]);
             if (this.appBuilderConfig.exitAfterRun) {
-                this.rootLogger.info(
-                    { reason },
-                    `Successfully shut down all services. Reason ${reason}. Will exit now`,
-                );
-
+                this.rootLogger.info({ reason }, `Successfully shut down all services. Reason ${reason}. Goodbye 👋`);
                 process.exit(exitCode);
+            } else {
+                this.rootLogger.info({ reason }, `Successfully shut down all services. Goodbye 👋`);
             }
         } catch (e) {
             this.rootLogger.info({ reason, error: e }, `Uncaught error while shutting-down: ${e.message}`);
@@ -626,33 +626,43 @@ export class ApplicationBuilder<Config> {
             this.rootLogger.error("Uncaught error and no error-handler registered, will exit now");
             return this.shutdown(args.reason, 1);
         }
-        const errorHandlerResults = await Promise.all(
+        const errorHandlerResults = await Promise.allSettled(
             this.errorHandlers.map(errorFn => errorFn(this.buildResolveArgs(this.container), args.error)),
         );
 
-        if (errorHandlerResults.some(e => e === ErrorHandle.DIE)) {
+        if (errorHandlerResults.some(r => r.status === "rejected")) {
+            this.rootLogger.info("Some error handlers were rejected, will exit immediately");
+            return this.shutdown("UNHANDLED_REJECTION", 1, true);
+        }
+
+        if (errorHandlerResults.some(r => r.status === "fulfilled" && r.value === ErrorHandle.DIE)) {
             this.rootLogger.error("Received DIE-signal from one error-handler, will exit now");
             return this.shutdown(args.reason, 1);
         }
         this.rootLogger.info(`All error-handlers indicated to ignore the error: ${args.error && args.error.message}`);
     };
 
-    private handleShutdown = async (args: { error?: Error; reason: string; code: number }): Promise<void> => {
+    private handleShutdown = _once(async (args: { error?: Error; reason: string; code: number }): Promise<void> => {
         if (!this.shutdownHandlers.length) {
             this.rootLogger.info(args, "No shutdown handlers registered, will try to shutdown gracefully");
             return this.shutdown(args.reason, args.code);
         }
-        const shutdownHandlerResults = await Promise.all(
+        const shutdownHandlerResults = await Promise.allSettled(
             this.shutdownHandlers.map(errorFn => errorFn(this.buildResolveArgs(this.container), args.reason)),
         );
 
-        if (shutdownHandlerResults.some(e => e === ShutdownHandle.FORCE)) {
+        if (shutdownHandlerResults.some(r => r.status === "rejected")) {
+            this.rootLogger.info("Some shutdown handlers were rejected, will exit immediately");
+            return this.shutdown("UNHANDLED_REJECTION", 1, true);
+        }
+
+        if (shutdownHandlerResults.some(r => r.status === "fulfilled" && r.value === ShutdownHandle.FORCE)) {
             this.rootLogger.info("Received FORCE-signal from one shutdown-handler, will exit immediately");
             return this.shutdown(args.reason, args.code, true);
         }
         this.rootLogger.info("All shutdown-handlers indicated non-force-shutdown, will try to shutdown gracefully");
         return this.shutdown(args.reason, args.code);
-    };
+    });
 
     private bindErrorSignals = () => {
         onExit(code => this.handleShutdown({ reason: "EXIT", code: code ?? 1 }));
