@@ -34,6 +34,7 @@ import {
 } from "./remoteConfig";
 import type { DeepMerge } from "./types/base";
 
+import { onExit } from "signal-exit";
 import { Container } from "inversify";
 import { pick, kebabCase, uniq, camelCase, once as _once, merge, mergeWith, isUndefined } from "lodash";
 import { set } from "lodash/fp";
@@ -654,15 +655,11 @@ export class ApplicationBuilder<Config> {
     };
 
     private bindErrorSignals = () => {
+        onExit(code => this.handleShutdown({ reason: "EXIT", code: code ?? 1 }));
         process.on("uncaughtException", error => this.handleError({ error, reason: "UNCAUGHT_EXCEPTION" }));
         process.on("unhandledRejection", reason =>
             this.handleError({ ...(reason instanceof Error ? { error: reason } : {}), reason: "UNHANDLED_REJECTION" }),
         );
-        process.on("beforeExit", () => this.handleShutdown({ reason: "BEFORE_EXIT", code: 1 }));
-        process.on("exit", () => this.handleShutdown({ reason: "EXIT", code: 1 }));
-        process.on("SIGINT", () => this.handleShutdown({ reason: "SIGINT", code: 2 }));
-        process.on("SIGQUIT", () => this.handleShutdown({ reason: "SIGQUIT", code: 3 }));
-        process.on("SIGTERM", () => this.handleShutdown({ reason: "SIGTERM", code: 15 }));
     };
 
     public async run<TResult = any>(
