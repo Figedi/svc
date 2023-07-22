@@ -112,6 +112,7 @@ const $env: EnvalidTransformer = {
 };
 
 const defaultAppBuilderConfig: AppBuilderConfig = {
+    deferredShutdownHandle: false,
     shutdownGracePeriodSeconds: 10,
     bindProcessSignals: true,
     exitAfterRun: true,
@@ -402,8 +403,8 @@ export class ApplicationBuilder<Config> {
 
     /**
      * Application shutdown-handlers. Whenever a shutdown is requested, this handler can perform
-     * additional shutdown logic and indicate whether  a graceful-shutdown should be atteempted or whether
-     * a forced-shutdown  is performed, resulting in immediate process-exiting.
+     * additional shutdown logic and indicate whether a graceful-shutdown should be attempted or whether
+     * a forced-shutdown is performed, resulting in immediate process-exiting.
      *
      * If one handle indicates FORCE, all other handlers are ignored
      *
@@ -493,6 +494,13 @@ export class ApplicationBuilder<Config> {
         return this;
     }
 
+    /**
+     * @alias onShutdown This is just an alias for onShutdown for the sake of same naming as registerPreflightFn
+     */
+    public registerShutdownFn(fn: ShutdownHandlerFn<Config>): ApplicationBuilder<Config> {
+        return this.onShutdown(fn);
+    }
+
     private parseCommandArgs<TArgs extends Record<string, any>>(
         command: Command<TArgs, any>,
     ): (TArgs & { $raw: ParsedArgs }) | undefined {
@@ -555,16 +563,23 @@ export class ApplicationBuilder<Config> {
         } as TArgs & { $raw: ParsedArgs };
     }
 
-    private async runCommand<TResult>(commandName: string): Promise<TResult> {
+    private async runCommand<TResult>(
+        commandName: string,
+    ): Promise<{ result: TResult; shutdownHandle?: () => Promise<void> }> {
         await Promise.all(this.preflightFns.map(fn => fn(this.buildResolveArgs(this.container))));
         const command = this.container.get<Command<any, TResult>>(commandName);
         const argv = this.parseCommandArgs(command);
 
         await Promise.all(this.servicesWithLifecycleHandlers.map(svc => svc.preflight && svc.preflight()));
         const commandResult = await command.execute({ logger: this.rootLogger, app: this.app, argv });
+        let shutdownHandle;
 
-        await this.shutdown("SVC_ENDED", 0);
-        return commandResult;
+        if (this.appBuilderConfig.deferredShutdownHandle) {
+            shutdownHandle = () => this.handleShutdown({ reason: "SVC_ENDED", code: 0 });
+        } else {
+            await this.handleShutdown({ reason: "SVC_ENDED", code: 0 });
+        }
+        return { result: commandResult, shutdownHandle };
     }
 
     private shutdown = _once(async (reason: string, exitCode = 1, forceExit = false): Promise<void> => {
@@ -621,10 +636,10 @@ export class ApplicationBuilder<Config> {
         this.rootLogger.info(`All error-handlers indicated to ignore the error: ${args.error && args.error.message}`);
     };
 
-    private handleShutdown = async (args: { error?: Error; reason: string }): Promise<void> => {
+    private handleShutdown = async (args: { error?: Error; reason: string; code: number }): Promise<void> => {
         if (!this.shutdownHandlers.length) {
             this.rootLogger.info(args, "No shutdown handlers registered, will try to shutdown gracefully");
-            return this.shutdown(args.reason, 1);
+            return this.shutdown(args.reason, args.code);
         }
         const shutdownHandlerResults = await Promise.all(
             this.shutdownHandlers.map(errorFn => errorFn(this.buildResolveArgs(this.container), args.reason)),
@@ -632,10 +647,10 @@ export class ApplicationBuilder<Config> {
 
         if (shutdownHandlerResults.some(e => e === ShutdownHandle.FORCE)) {
             this.rootLogger.info("Received FORCE-signal from one shutdown-handler, will exit immediately");
-            return this.shutdown(args.reason, 1, true);
+            return this.shutdown(args.reason, args.code, true);
         }
         this.rootLogger.info("All shutdown-handlers indicated non-force-shutdown, will try to shutdown gracefully");
-        return this.shutdown(args.reason, 1);
+        return this.shutdown(args.reason, args.code);
     };
 
     private bindErrorSignals = () => {
@@ -643,14 +658,16 @@ export class ApplicationBuilder<Config> {
         process.on("unhandledRejection", reason =>
             this.handleError({ ...(reason instanceof Error ? { error: reason } : {}), reason: "UNHANDLED_REJECTION" }),
         );
-        process.on("beforeExit", () => this.handleShutdown({ reason: "BEFORE_EXIT" }));
-        process.on("exit", () => this.handleShutdown({ reason: "EXIT" }));
-        process.on("SIGINT", () => this.handleShutdown({ reason: "SIGINT" }));
-        process.on("SIGQUIT", () => this.handleShutdown({ reason: "SIGQUIT" }));
-        process.on("SIGTERM", () => this.handleShutdown({ reason: "SIGTERM" }));
+        process.on("beforeExit", () => this.handleShutdown({ reason: "BEFORE_EXIT", code: 1 }));
+        process.on("exit", () => this.handleShutdown({ reason: "EXIT", code: 1 }));
+        process.on("SIGINT", () => this.handleShutdown({ reason: "SIGINT", code: 2 }));
+        process.on("SIGQUIT", () => this.handleShutdown({ reason: "SIGQUIT", code: 3 }));
+        process.on("SIGTERM", () => this.handleShutdown({ reason: "SIGTERM", code: 15 }));
     };
 
-    public async run<TResult = any>(command?: string): Promise<TResult> {
+    public async run<TResult = any>(
+        command?: string,
+    ): Promise<{ result: TResult; shutdownHandle?: () => Promise<void> }> {
         const argv: any = minimist(process.argv.slice(2), buildOptions({ command: { type: "string", alias: "c" } }));
 
         const commandName = (command || argv.command || this.defaultCommandName) as string | undefined;

@@ -3,7 +3,7 @@ import { expect } from "chai";
 import { assert, stub } from "sinon";
 
 import { ApplicationBuilder } from "./ApplicationBuilder";
-import { Command, Provider, ErrorHandle } from "./types/app";
+import { Command, Provider, ErrorHandle, ShutdownHandle } from "./types/app";
 import { createStubbedLogger } from "../logger";
 
 describe("ApplicationBuilder", function AppBuilderTest() {
@@ -113,7 +113,7 @@ describe("ApplicationBuilder", function AppBuilderTest() {
             const globalPreflightFn = stub();
             const commandShutdownFn = stub();
 
-            const result = await ApplicationBuilder.create({
+            const { result } = await ApplicationBuilder.create({
                 loggerFactory: createStubbedLogger,
                 bindProcessSignals: false,
                 exitAfterRun: false,
@@ -138,6 +138,47 @@ describe("ApplicationBuilder", function AppBuilderTest() {
             assert.calledOnce(commandPreflightFn);
             assert.calledOnce(globalPreflightFn);
             assert.calledOnce(commandShutdownFn);
+        });
+
+        it("allows to expose a deferred shutdown handler", async () => {
+            const commandPreflightFn = stub();
+            const globalPreflightFn = stub();
+            const globalShutdownFn = stub();
+            const commandShutdownFn = stub();
+
+            const { result, shutdownHandle } = await ApplicationBuilder.create({
+                loggerFactory: createStubbedLogger,
+                bindProcessSignals: false,
+                exitAfterRun: false,
+                deferredShutdownHandle: true,
+            })
+                .registerPreflightFn(async () => globalPreflightFn())
+                .registerShutdownFn(() => {
+                    globalShutdownFn();
+                    return ShutdownHandle.GRACEFUL;
+                })
+                .registerDefaultCommand("start-intermediate", () => ({
+                    info: {
+                        name: "DefaultCommand",
+                    },
+                    preflight() {
+                        commandPreflightFn();
+                    },
+                    shutdown() {
+                        commandShutdownFn();
+                    },
+                    execute: async () => ({ universe: 42 }),
+                }))
+                .run();
+
+            expect(result).to.deep.eq({ universe: 42 });
+            assert.notCalled(commandShutdownFn);
+            assert.notCalled(globalShutdownFn);
+            assert.calledOnce(commandPreflightFn);
+            assert.calledOnce(globalPreflightFn);
+            await shutdownHandle!();
+            assert.calledOnce(commandShutdownFn);
+            assert.calledOnce(globalShutdownFn);
         });
     });
 });

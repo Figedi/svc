@@ -18,6 +18,7 @@ export enum ShutdownHandle {
 }
 
 export interface AppBuilderConfig {
+    deferredShutdownHandle: boolean;
     shutdownGracePeriodSeconds: number;
     bindProcessSignals: boolean;
     rootLoggerProperties: Record<string, any>;
