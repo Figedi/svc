@@ -9,4 +9,5 @@ export default defineConfig({
     shims: true,
     clean: true,
     treeshake: true,
+
 });
