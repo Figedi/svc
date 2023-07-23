@@ -1,7 +1,7 @@
-import { IReloadingStrategy, IReplicaService } from "../app/remoteConfig";
-import { ServiceWithLifecycleHandlers } from "../app/types";
+import type { IReloadingStrategy, IReplicaService } from "../app/remoteConfig";
+import type { ServiceWithLifecycleHandlers } from "../app/types";
 import { sleep } from "../app/utils";
-import { Logger } from "../logger";
+import type { Logger } from "../logger";
 
 /**
  * Reloading-strategy to gracefully restart a pod with neighbouring replicas.
@@ -17,7 +17,10 @@ import { Logger } from "../logger";
 export class K8sRollingUpdateStrategy implements IReloadingStrategy, ServiceWithLifecycleHandlers {
     private static RESTART_SLEEP_TIME_RANGE_MS = 10000;
 
-    constructor(private replicaService: IReplicaService, private logger: Logger) {}
+    constructor(
+        private replicaService: IReplicaService,
+        private logger: Logger,
+    ) {}
 
     public preflight(): void {
         if (!this.replicaService || !this.logger) {

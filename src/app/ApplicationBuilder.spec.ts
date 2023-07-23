@@ -3,7 +3,7 @@ import { expect } from "chai";
 import { assert, stub } from "sinon";
 
 import { ApplicationBuilder } from "./ApplicationBuilder";
-import { Command, Provider, ErrorHandle, ShutdownHandle } from "./types/app";
+import { type Command, type Provider, ErrorHandle, ShutdownHandle } from "./types/app";
 import { createStubbedLogger } from "../logger";
 
 describe("ApplicationBuilder", function AppBuilderTest() {

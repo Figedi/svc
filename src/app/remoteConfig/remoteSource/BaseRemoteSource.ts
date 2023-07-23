@@ -1,7 +1,7 @@
 /* eslint-disable max-classes-per-file */
 import type { MeteringRecorder } from "@figedi/metering";
-import { createValidator, SchemaValidationError, SchemaValidator, JSONSchema } from "@figedi/typecop";
-import { Subject, Observable, lastValueFrom } from "rxjs";
+import type { SchemaValidator, JSONSchema } from "@figedi/typecop";
+import { Subject, type Observable, lastValueFrom } from "rxjs";
 import { take } from "rxjs/operators";
 import { parse } from "semver";
 import stringify from "fast-json-stable-stringify";
@@ -48,7 +48,7 @@ export abstract class BaseRemoteSource<TProject, Schema> {
         try {
             return this.validator!.validate(this.rootSchema!, data);
         } catch (e) {
-            if (e instanceof SchemaValidationError) {
+            if (e.constructor.name === "SchemaValidationError") {
                 return false;
             }
             throw e;
@@ -217,7 +217,8 @@ export abstract class BaseRemoteSource<TProject, Schema> {
         this.initMetrics();
         this.trySetRequiredMetrics();
         this.stopped = false;
-        this.validator = createValidator();
+        const typecopMod = await import("@figedi/typecop");
+        this.validator = typecopMod.createValidator();
 
         this.rootSchema = await this.validator.compile(this.schema, [this.schemaBaseDir]);
     }

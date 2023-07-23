@@ -10,6 +10,8 @@ module.exports = {
         project: "./tsconfig.json",
     },
     rules: {
+        "@typescript-eslint/consistent-type-imports": "error",
+        "@typescript-eslint/no-import-type-side-effects": "error",
         // Too restrictive, writing ugly code to defend against a very unlikely scenario: https://eslint.org/docs/rules/no-prototype-builtins
         "no-prototype-builtins": "off",
         // https://basarat.gitbooks.io/typescript/docs/tips/defaultIsBad.html

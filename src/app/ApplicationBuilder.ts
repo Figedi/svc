@@ -27,7 +27,7 @@ import type {
     DynamicObservableTransformFn,
     DynamicConfigFnArgs,
 } from "./types";
-import { type RemoteDependencyArgs, IRemoteSource } from "./remoteConfig";
+import type { RemoteDependencyArgs, IRemoteSource } from "./remoteConfig";
 import type { DeepMerge } from "./types/base";
 
 import { onExit } from "signal-exit";
@@ -42,7 +42,7 @@ import {
     toConstantCase,
     reduceTree,
     serviceWithPreflightOrShutdown,
-    TreeNodeTransformerConfig,
+    type TreeNodeTransformerConfig,
 } from "./utils";
 import { ShutdownHandle, ErrorHandle, REF_SYMBOLS, REF_TYPES, isTransformer } from "./types";
 import buildOptions from "minimist-options";

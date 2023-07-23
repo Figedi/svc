@@ -1,4 +1,4 @@
-import { getVersion, ConfigRepository, getRootSchema, SCHEMA_BASE_DIR } from "@figedi/svc-config";
+import { getVersion, type ConfigRepository, getRootSchema, SCHEMA_BASE_DIR } from "@figedi/svc-config";
 import { SopsClient } from "@figedi/sops";
 import { KmsKeyDecryptor, setupStubbedKms } from "@figedi/sops/kms";
 import nock from "nock";
@@ -10,15 +10,15 @@ import type { KeyManagementServiceClient } from "@google-cloud/kms";
 import {
     createStubbedConfigValues,
     createStubbedResponses,
-    StubbedResponses,
-    StubbedConfigValues,
+    type StubbedResponses,
+    type StubbedConfigValues,
     createUpdateStrategyStub,
 } from "./shared.specFiles";
 import { TestApplicationBuilder } from "../TestApplicationBuilder";
 import { PollingRemoteSource } from "./remoteSource/PollingRemoteSource";
 import { createStubbedLogger } from "../../logger";
 import { ApplicationBuilder } from "../ApplicationBuilder";
-import { ReactsOnFn } from "./types";
+import type { ReactsOnFn } from "./types";
 import { InvalidConfigWithoutDataError, MaxRetriesWithoutDataError } from "./remoteSource";
 import { sleep } from "../utils";
 import { assertInTestAppBuilder, assertErrorInTestAppBuilder } from "../shared.specFiles/helpers";

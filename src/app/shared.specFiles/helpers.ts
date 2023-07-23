@@ -1,7 +1,7 @@
 // eslint-disable-next-line import/no-extraneous-dependencies
 import { expect } from "chai";
-import { TestApplicationBuilder } from "../TestApplicationBuilder";
-import { RegisterFnArgs } from "../ApplicationBuilder";
+import type { TestApplicationBuilder } from "../TestApplicationBuilder";
+import type { RegisterFnArgs } from "../ApplicationBuilder";
 import { sleep } from "../utils";
 
 export const assertInTestAppBuilder = async <C>(

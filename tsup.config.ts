@@ -1,7 +1,7 @@
 import { defineConfig } from "tsup";
 
 export default defineConfig({
-    entry: ["src/index.ts", "src/k8s/index.ts", "src/logger/index.ts", "src/app/index.ts"],
+    entry: ["src/index.ts", "src/k8s/index.ts", "src/logger/index.ts", "src/remoteConfig/index.ts"],
     format: ["cjs", "esm"],
     outDir: "dist",
     sourcemap: false,
@@ -9,5 +9,4 @@ export default defineConfig({
     shims: true,
     clean: true,
     treeshake: true,
-
 });

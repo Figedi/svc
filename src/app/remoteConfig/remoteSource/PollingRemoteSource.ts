@@ -1,6 +1,6 @@
 import type { MeteringRecorder } from "@figedi/metering";
 import type { JSONSchema } from "@figedi/typecop";
-import axios, { AxiosResponse } from "axios";
+import axios, { type AxiosResponse } from "axios";
 
 import { remapTree, sleep } from "../../utils";
 import { BaseRemoteSource } from "./BaseRemoteSource";

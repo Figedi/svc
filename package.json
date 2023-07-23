@@ -7,6 +7,10 @@
   "repository": "https://github.com/figedi/svc.git",
   "author": "Felix Kaminski <kaminski.felix@gmail.com>",
   "license": "MIT",
+  "exports": {
+    "import": "./dist/index.mjs",
+    "require": "./dist/index.js"
+  },
   "scripts": {
     "clean": "rm -rf dist && mkdir -p dist",
     "build": "npm run clean && tsup",

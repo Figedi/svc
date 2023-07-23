@@ -1,4 +1,4 @@
-import pino, { LoggerOptions as PinoLoggerOptions } from "pino";
+import pino, { type LoggerOptions as PinoLoggerOptions } from "pino";
 
 export interface LoggerBaseProperties {
     service: string;
