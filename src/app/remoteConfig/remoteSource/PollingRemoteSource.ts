@@ -2,12 +2,22 @@ import type { MeteringRecorder } from "@figedi/metering";
 import type { JSONSchema } from "@figedi/typecop";
 import axios, { AxiosResponse } from "axios";
 
-import { sleep } from "../../utils";
+import { remapTree, sleep } from "../../utils";
 import { BaseRemoteSource } from "./BaseRemoteSource";
 import { MaxRetriesWithDataError, MaxRetriesWithoutDataError } from "./errors";
-import type { IJsonDecryptor } from "../types";
+import type { IJsonDecryptor, IReloadingStrategy, RemoteDependencyArgs } from "../types";
 import type { IRemoteSource } from "./types";
 import type { Logger } from "../../../logger";
+import {
+    type AddTransformConfigToPrimitives,
+    type DynamicOnceTransformConfig,
+    type DynamicStreamedTransformConfig,
+    type ServiceWithLifecycleHandlers,
+    REF_TYPES,
+} from "../../types";
+import { RemoteConfigHandler } from "../RemoteConfigHandler";
+import { share } from "rxjs";
+import { OnceRemoteConfigValue, StreamedRemoteConfigValue } from "../remoteValues";
 
 export enum AcceptedVersionRange {
     none = "none",
@@ -32,15 +42,22 @@ export interface PollingOpts {
     backoffBaseMs?: number;
 }
 
-export interface PollingRemoteSourceConfig<Schema> {
+export interface PollingRemoteSourceConfig<Schema, TProjected> {
     logger: Logger;
-    schema: JSONSchema<Schema>;
-    schemaBaseDir: string;
-    fallback?: Schema;
-    serviceName: string;
-    poll: RequiredPollingOpts & PollingOpts;
-    jsonDecryptor: IJsonDecryptor;
-    getMetricsRecorder?: () => MeteringRecorder;
+    source: {
+        schema: JSONSchema<Schema>;
+        schemaBaseDir: string;
+        fallback?: Schema;
+        serviceName: string;
+        poll: RequiredPollingOpts & PollingOpts;
+        jsonDecryptor: IJsonDecryptor;
+        getMetricsRecorder?: () => MeteringRecorder;
+    };
+    reloading?: {
+        reactsOn: (oldConfig: Schema | undefined, newConfig: Schema) => boolean;
+        strategy: IReloadingStrategy;
+    };
+    projections: (remoteArgs: RemoteDependencyArgs<Schema>) => AddTransformConfigToPrimitives<TProjected, Schema>;
 }
 
 interface ConfigServiceResponse<Schema> {
@@ -67,24 +84,76 @@ const EXP_BACKOFF_RANDOMNESS_MS = 10;
  * This class performs validation-check based on a given schema to guarantee that
  * a fetched config will always be in the correct format.
  */
-export class PollingRemoteSource<Schema> extends BaseRemoteSource<Schema> implements IRemoteSource<Schema> {
-    private config!: PollingRemoteSourceConfig<Schema>;
+export class PollingRemoteSource<TProject, Schema>
+    extends BaseRemoteSource<TProject, Schema>
+    implements IRemoteSource<TProject, Schema>
+{
+    private config!: PollingRemoteSourceConfig<Schema, TProject>;
     private pollingTimeout?: NodeJS.Timer;
 
-    constructor(config: PollingRemoteSourceConfig<Schema>) {
+    constructor(config: PollingRemoteSourceConfig<Schema, TProject>) {
         super(
             config.logger,
-            config.serviceName,
-            config.poll.version,
-            config.schema,
-            config.jsonDecryptor,
-            config.schemaBaseDir,
-            config.getMetricsRecorder,
-            config.fallback,
+            config.source.serviceName,
+            config.source.poll.version,
+            config.source.schema,
+            config.source.jsonDecryptor,
+            config.source.schemaBaseDir,
+            config.source.getMetricsRecorder,
+            config.source.fallback,
         );
         this.config = {
             ...config,
-            poll: { ...DEFAULT_POLLING_REMOTE_SOURCE_CONFIG, ...config.poll },
+            source: {
+                ...config.source,
+                poll: { ...DEFAULT_POLLING_REMOTE_SOURCE_CONFIG, ...config.source.poll },
+            },
+        };
+    }
+
+    public init(args: RemoteDependencyArgs<Schema>): {
+        config: TProject;
+        lifecycleArtefacts?: ServiceWithLifecycleHandlers[];
+    } {
+        const projections = this.config.projections(args);
+        const stream$ = this.stream().pipe(share());
+        const lifecycleArtefacts: ServiceWithLifecycleHandlers[] = [];
+        if (this.config.reloading?.reactsOn) {
+            const handler = new RemoteConfigHandler(
+                stream$,
+                this.config.reloading.reactsOn,
+                this.config.reloading.strategy.execute,
+            );
+            lifecycleArtefacts.push(handler);
+        }
+
+        const projectedRemoteConfig = remapTree(
+            projections,
+            {
+                // eslint-disable-next-line no-underscore-dangle
+                predicate: value => !!value && value.__type === REF_TYPES.DYNAMIC_ONCE,
+                transform: ({ propGetter }: DynamicOnceTransformConfig<Schema>) => {
+                    const remoteConfigValue = new OnceRemoteConfigValue(stream$, propGetter);
+                    lifecycleArtefacts.push(remoteConfigValue);
+
+                    return remoteConfigValue;
+                },
+            },
+            {
+                // eslint-disable-next-line no-underscore-dangle
+                predicate: value => !!value && value.__type === REF_TYPES.DYNAMIC_STREAMED,
+                transform: ({ propGetter }: DynamicStreamedTransformConfig<Schema>) => {
+                    const remoteConfigValue = new StreamedRemoteConfigValue(stream$, propGetter);
+                    lifecycleArtefacts.push(remoteConfigValue);
+
+                    return remoteConfigValue;
+                },
+            },
+        ) as TProject;
+
+        return {
+            config: projectedRemoteConfig,
+            lifecycleArtefacts,
         };
     }
 
@@ -99,7 +168,7 @@ export class PollingRemoteSource<Schema> extends BaseRemoteSource<Schema> implem
     };
 
     private getFetchUrl(): string {
-        const { endpoint, prefix, version, acceptedRange } = this.config.poll;
+        const { endpoint, prefix, version, acceptedRange } = this.config.source.poll;
         const replacedVersion = {
             [AcceptedVersionRange.none]: (v: string) => v,
             [AcceptedVersionRange.patch]: (v: string) => String(v).split(".").slice(0, -1).concat("x").join("."),
@@ -111,7 +180,7 @@ export class PollingRemoteSource<Schema> extends BaseRemoteSource<Schema> implem
     }
 
     private fetchData = async (url: string, tries = 0): Promise<AxiosResponse<ConfigServiceResponse<Schema>>> => {
-        const { maxTriesWithValue, maxTriesWithoutValue, backoffBaseMs } = this.config.poll;
+        const { maxTriesWithValue, maxTriesWithoutValue, backoffBaseMs } = this.config.source.poll;
         try {
             this.config.logger.info({ tries }, `Getting config from url via http: ${url}`);
             return await axios({ url, method: "GET" });
@@ -160,7 +229,7 @@ export class PollingRemoteSource<Schema> extends BaseRemoteSource<Schema> implem
             return;
         }
         await this.getNextData();
-        this.pollingTimeout = setTimeout(this.execute, this.config.poll.pollingIntervalMs!);
+        this.pollingTimeout = setTimeout(this.execute, this.config.source.poll.pollingIntervalMs!);
     };
 
     public shutdown(): void {

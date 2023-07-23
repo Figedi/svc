@@ -22,11 +22,13 @@ import { ReactsOnFn } from "./types";
 import { InvalidConfigWithoutDataError, MaxRetriesWithoutDataError } from "./remoteSource";
 import { sleep } from "../utils";
 import { assertInTestAppBuilder, assertErrorInTestAppBuilder } from "../shared.specFiles/helpers";
+import { from } from "rxjs";
 
 const REMOTE_CONFIG_ENDPOINT = "http://localhost:8080"; // example endpoint, will never be executed due to nock
 
 const PROJECTIONS = {
     logLevel: (config: ConfigRepository) => config.resources.configs.service["common.json"].logLevel,
+    constantNum: () => 1,
 };
 
 const defaultReactsOnFn: ReactsOnFn<ConfigRepository> = () => false;
@@ -44,31 +46,39 @@ const createTestApplicationBuilder = (
             serviceName: "example-svc",
             environmentName: "dev",
         }))
-        .addDynamicConfig(({ logger, config }) => ({
-            source: new PollingRemoteSource({
-                logger,
-                schema: getRootSchema(),
-                schemaBaseDir: SCHEMA_BASE_DIR,
-                serviceName: config.serviceName,
-                fallback: initialValue,
-                jsonDecryptor: new SopsClient(KmsKeyDecryptor.createWithKmsClient(kmsClient)),
-                poll: {
-                    pollingIntervalMs,
-                    maxTriesWithoutValue: 2,
-                    backoffBaseMs: 100,
-                    endpoint: REMOTE_CONFIG_ENDPOINT,
-                    version: getVersion(),
-                },
-            }),
-            reloading: {
-                reactsOn,
-                strategy: createUpdateStrategyStub(),
-            },
-            projections: ({ once, streamed }) => ({
-                onceValue: once(PROJECTIONS.logLevel),
-                streamedValue: streamed(PROJECTIONS.logLevel),
-            }),
-        }));
+        .addDynamicConfig(({ config, awaited, streamed }) => ({
+            testAwait: awaited(() => Promise.resolve(`${config.serviceName}123`)),
+            testObservable: streamed(() => from([1, 2, 3])),
+        }))
+        .addDynamicConfig(
+            ({ logger, config }) =>
+                new PollingRemoteSource({
+                    logger,
+                    source: {
+                        schema: getRootSchema(),
+                        schemaBaseDir: SCHEMA_BASE_DIR,
+                        serviceName: config.serviceName,
+                        fallback: initialValue,
+                        jsonDecryptor: new SopsClient(KmsKeyDecryptor.createWithKmsClient(kmsClient)),
+                        poll: {
+                            pollingIntervalMs,
+                            maxTriesWithoutValue: 2,
+                            backoffBaseMs: 100,
+                            endpoint: REMOTE_CONFIG_ENDPOINT,
+                            version: getVersion(),
+                        },
+                    },
+                    reloading: {
+                        reactsOn,
+                        strategy: createUpdateStrategyStub(),
+                    },
+                    projections: ({ once, streamed }) => ({
+                        onceValue: once(PROJECTIONS.logLevel),
+                        onceValueNum: once(PROJECTIONS.constantNum),
+                        streamedValue: streamed(PROJECTIONS.logLevel),
+                    }),
+                }),
+        );
 
     return {
         app: appBuilder,
@@ -213,6 +223,8 @@ describe("RemoteConfig", function RemoteConfigTest() {
 
             await assertInTestAppBuilder(testApp, async ({ config }) => {
                 expect(await config.onceValue.get()).to.equal(PROJECTIONS.logLevel(values.initial));
+                expect(typeof (await config.onceValueNum.get())).to.equal("number");
+                expect(await config.testAwait.get()).to.equal(`${config.serviceName}123`);
             });
             scope.done(); // will throw if not called
         });

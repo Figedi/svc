@@ -9,10 +9,11 @@ import stringify from "fast-json-stable-stringify";
 import { remapTreeAsync } from "../../utils";
 import { InvalidConfigWithoutDataError } from "./errors";
 import type { Logger } from "../../../logger";
-import type { IJsonDecryptor } from "../types";
+import type { IJsonDecryptor, RemoteDependencyArgs } from "../types";
 import type { ConfigMetrics } from "./types";
+import type { ServiceWithLifecycleHandlers } from "../../types";
 
-export abstract class BaseRemoteSource<Schema> {
+export abstract class BaseRemoteSource<TProject, Schema> {
     public value$!: Subject<Schema>;
 
     private validator?: SchemaValidator;
@@ -37,6 +38,11 @@ export abstract class BaseRemoteSource<Schema> {
          */
         this.value$ = new Subject();
     }
+
+    public abstract init(args: RemoteDependencyArgs<Schema>): {
+        config: TProject;
+        lifecycleArtefacts?: ServiceWithLifecycleHandlers[];
+    };
 
     protected validate(data: unknown): data is Schema {
         try {
@@ -66,43 +72,44 @@ export abstract class BaseRemoteSource<Schema> {
 
     private initMetrics(): void {
         if (this.getMetricsRecorder) {
+            const recorder = this.getMetricsRecorder();
             this.metrics = {
-                requiredVersionMajorTotal: this.getMetricsRecorder().createGauge(
+                requiredVersionMajorTotal: recorder.createGauge(
                     `${this.serviceName.replace(/-/g, "_")}__required_version_major_total`,
                     "The required MAJOR config version",
                     ["service", "version"],
                 ),
-                requiredVersionMinorTotal: this.getMetricsRecorder().createGauge(
+                requiredVersionMinorTotal: recorder.createGauge(
                     `${this.serviceName.replace(/-/g, "_")}__required_version_minor_total`,
                     "The required MINOR config version",
                     ["service", "version"],
                 ),
-                requiredVersionPatchTotal: this.getMetricsRecorder().createGauge(
+                requiredVersionPatchTotal: recorder.createGauge(
                     `${this.serviceName.replace(/-/g, "_")}__required_version_patch_total`,
                     "The required PATCH config version",
                     ["service", "version"],
                 ),
-                lastConsumedVersionTotal: this.getMetricsRecorder().createGauge(
+                lastConsumedVersionTotal: recorder.createGauge(
                     `${this.serviceName.replace(/-/g, "_")}__last_consumed_config_version_total`,
                     "The last consumed config version",
                     ["service", "version", "received"],
                 ),
-                lastConsumedVersionMajorTotal: this.getMetricsRecorder().createGauge(
+                lastConsumedVersionMajorTotal: recorder.createGauge(
                     `${this.serviceName.replace(/-/g, "_")}__last_consumed_config_version_major_total`,
                     "The last consumed config MAJOR version",
                     ["service", "version", "received"],
                 ),
-                lastConsumedVersionMinorTotal: this.getMetricsRecorder().createGauge(
+                lastConsumedVersionMinorTotal: recorder.createGauge(
                     `${this.serviceName.replace(/-/g, "_")}__last_consumed_config_version_minor_total`,
                     "The last consumed config MINOR version",
                     ["service", "version", "received"],
                 ),
-                lastConsumedVersionPatchTotal: this.getMetricsRecorder().createGauge(
+                lastConsumedVersionPatchTotal: recorder.createGauge(
                     `${this.serviceName.replace(/-/g, "_")}__last_consumed_config_version_patch_total`,
                     "The last consumed config PATCH version",
                     ["service", "version", "received"],
                 ),
-                invalidDataReceivedTotal: this.getMetricsRecorder().createGauge(
+                invalidDataReceivedTotal: recorder.createGauge(
                     `${this.serviceName.replace(/-/g, "_")}__invalid_config_data_received_total`,
                     "Total amount of invalid remote-config-data received",
                     ["service", "version", "received"],

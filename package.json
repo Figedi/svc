@@ -1,6 +1,6 @@
 {
   "name": "@figedi/svc",
-  "version": "0.6.21",
+  "version": "1.0.0",
   "description": "Yet another base lib for services",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

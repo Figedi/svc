@@ -1,4 +1,4 @@
-import { lastValueFrom, Observable, Subscription } from "rxjs";
+import { lastValueFrom, type Observable, type Subscription } from "rxjs";
 import { map, take, tap } from "rxjs/operators";
 import type { ServiceWithLifecycleHandlers } from "../../types/service";
 import type { IOnceRemoteConfigValue } from "./types";

@@ -21,17 +21,13 @@ import type {
     AnyTransformStrict,
     InferredOptionType,
     AllOptions,
-    DynamicOnceTransformConfig,
-    DynamicStreamedTransformConfig,
     DynamicOnceTransformFn,
     DynamicStreamedTransformFn,
+    DynamicPromiseTransformFn,
+    DynamicObservableTransformFn,
+    DynamicConfigFnArgs,
 } from "./types";
-import {
-    type BaseRemoteConfig,
-    type RemoteDependencyArgs,
-    OnceRemoteConfigValue,
-    StreamedRemoteConfigValue,
-} from "./remoteConfig";
+import { type RemoteDependencyArgs, IRemoteSource } from "./remoteConfig";
 import type { DeepMerge } from "./types/base";
 
 import { onExit } from "signal-exit";
@@ -53,8 +49,8 @@ import buildOptions from "minimist-options";
 import minimist from "minimist";
 import { MissingCommandArgsError } from "./errors";
 import { getRootDir, safeReadFile } from "./utils/util";
-import { share } from "rxjs";
-import { RemoteConfigHandler } from "./remoteConfig/RemoteConfigHandler";
+import { BaseRemoteSource } from "./remoteConfig/remoteSource/BaseRemoteSource";
+import { DynamicConfigSource } from "./remoteConfig/remoteSource/DynamicConfigSource";
 
 export type AppPreflightFn<C> = (container: RegisterFnArgs<C>) => Promise<any> | any;
 
@@ -97,6 +93,17 @@ const streamed: DynamicStreamedTransformFn<any> = propGetter => ({
     propGetter,
     __type: REF_TYPES.DYNAMIC_STREAMED,
     __sym: REF_SYMBOLS.DYNAMIC_STREAMED,
+});
+
+const dynamicPromise: DynamicPromiseTransformFn = propGetter => ({
+    propGetter,
+    __type: REF_TYPES.DYNAMIC_PROMISE,
+    __sym: REF_SYMBOLS.DYNAMIC_PROMISE,
+});
+const dynamicObservable: DynamicObservableTransformFn = propGetter => ({
+    propGetter,
+    __type: REF_TYPES.DYNAMIC_OBSERVABLE,
+    __sym: REF_SYMBOLS.DYNAMIC_OBSERVABLE,
 });
 
 const $env: EnvalidTransformer = {
@@ -218,7 +225,6 @@ export class ApplicationBuilder<Config> {
             if (opts.mode === "overwrite") {
                 this.config = overwrittenConfig;
             } else {
-                // @todo test this, idea is to not go further with merging once the right hand side is a transformer definition
                 this.config = mergeWith({}, this.config, overwrittenConfig, obj => {
                     if (isTransformer(obj)) {
                         return obj;
@@ -259,58 +265,34 @@ export class ApplicationBuilder<Config> {
      *
      */
     public addDynamicConfig<TRemoteConfig, TProjRemoteConfig>(
-        remoteConfigFn: (args: BaseRegisterFnArgs<Config>) => BaseRemoteConfig<TRemoteConfig, TProjRemoteConfig>,
+        sourceFn: (
+            args: DynamicConfigFnArgs<Config>,
+        ) => IRemoteSource<TProjRemoteConfig, TRemoteConfig> | TProjRemoteConfig,
     ): ApplicationBuilder<DeepMerge<Config, TProjRemoteConfig, AnyTransformStrict<any>>> {
-        const args = this.buildBaseResolveArgs();
-
-        const { projections, source, reloading } = remoteConfigFn(args);
-
-        if (serviceWithPreflightOrShutdown(source)) {
+        const baseArgs: DynamicConfigFnArgs<Config> = {
+            ...this.buildBaseResolveArgs(),
+            awaited: dynamicPromise,
+            streamed: dynamicObservable,
+        };
+        const source = sourceFn(baseArgs);
+        let projectedConfig: TProjRemoteConfig;
+        if (source instanceof BaseRemoteSource) {
             this.servicesWithLifecycleHandlers.push(source);
-        }
-
-        if (!(reloading || projections)) {
-            throw new Error(`Please define at least 'projections' or 'reloading' for remote-config`);
-        }
-
-        const stream$ = source.stream().pipe(share());
-
-        if (reloading && reloading.reactsOn) {
-            const handler = new RemoteConfigHandler(stream$, reloading.reactsOn, reloading.strategy.execute);
-            if (serviceWithPreflightOrShutdown(handler)) {
-                this.servicesWithLifecycleHandlers.push(handler);
+            const dependencyArgs = { once, streamed } as RemoteDependencyArgs<TRemoteConfig>;
+            const { config, lifecycleArtefacts } = source.init(dependencyArgs);
+            if (lifecycleArtefacts?.length) {
+                this.servicesWithLifecycleHandlers.push(...lifecycleArtefacts);
             }
+
+            projectedConfig = config;
+        } else {
+            const sourceArtefact = new DynamicConfigSource(source as TProjRemoteConfig);
+            this.servicesWithLifecycleHandlers.push(sourceArtefact);
+
+            projectedConfig = sourceArtefact.init();
         }
-        const projectionConfig = projections({ once, streamed } as RemoteDependencyArgs<TRemoteConfig>);
 
-        const projectedRemoteConfig = remapTree(
-            projectionConfig,
-            {
-                // eslint-disable-next-line no-underscore-dangle
-                predicate: value => !!value && value.__type === REF_TYPES.DYNAMIC_ONCE,
-                transform: ({ propGetter }: DynamicOnceTransformConfig<TRemoteConfig>) => {
-                    const remoteConfigValue = new OnceRemoteConfigValue(stream$, propGetter);
-                    if (serviceWithPreflightOrShutdown(remoteConfigValue)) {
-                        this.servicesWithLifecycleHandlers.push(remoteConfigValue);
-                    }
-                    return remoteConfigValue;
-                },
-            },
-            {
-                // eslint-disable-next-line no-underscore-dangle
-                predicate: value => !!value && value.__type === REF_TYPES.DYNAMIC_STREAMED,
-                transform: ({ propGetter }: DynamicStreamedTransformConfig<TRemoteConfig>) => {
-                    const remoteConfigValue = new StreamedRemoteConfigValue(stream$, propGetter);
-                    if (serviceWithPreflightOrShutdown(remoteConfigValue)) {
-                        this.servicesWithLifecycleHandlers.push(remoteConfigValue);
-                    }
-                    return remoteConfigValue;
-                },
-            },
-        ) as TProjRemoteConfig;
-
-        // @todo test this, idea is to not go further with merging once the right hand side is a transformer definition
-        this.config = mergeWith({}, this.config, projectedRemoteConfig, obj => {
+        this.config = mergeWith({}, this.config, projectedConfig, obj => {
             if (isTransformer(obj)) {
                 return obj;
             }
@@ -584,7 +566,7 @@ export class ApplicationBuilder<Config> {
     }
 
     private shutdown = _once(async (reason: string, exitCode = 1, forceExit = false): Promise<void> => {
-        // @todo this is wrong, its just HAX for the specs to not call process.exit i guess
+        // @todo this is wrong, its just HAX for the specs to not call process.exit
         if (!this.servicesWithLifecycleHandlers.length) {
             this.rootLogger.info({ reason }, `Successfully shut down all services. Goodbye 👋`);
             return;

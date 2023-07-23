@@ -6,6 +6,8 @@ import type { Logger } from "../../logger";
 import type { Primitive } from "./base";
 import type { ArgvParsingParams, AddOptionType } from "./args";
 import type { IOnceRemoteConfigValue, IStreamedRemoteConfigValue } from "../remoteConfig/remoteValues/types";
+import type { Observable } from "rxjs";
+import type { Ref } from "../remoteConfig/remoteSource/DynamicConfigSource";
 
 export enum ErrorHandle {
     IGNORE = "IGNORE",
@@ -74,6 +76,8 @@ export const REF_TYPES = {
     FILE: 2,
     DYNAMIC_ONCE: 3,
     DYNAMIC_STREAMED: 4,
+    DYNAMIC_PROMISE: 5,
+    DYNAMIC_OBSERVABLE: 6,
 } as const;
 
 export const REF_SYMBOLS = {
@@ -82,6 +86,8 @@ export const REF_SYMBOLS = {
     FILE: Symbol.for("@figedi/svc-transform-file"),
     DYNAMIC_ONCE: Symbol.for("@figedi/svc-transform-dynamic-once"),
     DYNAMIC_STREAMED: Symbol.for("@figedi/svc-transform-dynamic-streamed"),
+    DYNAMIC_PROMISE: Symbol.for("@figedi/svc-transform-dynamic-promise"),
+    DYNAMIC_OBSERVABLE: Symbol.for("@figedi/svc-transform-dynamic-observable"),
 } as const;
 
 export type EnvTransformFn = <ReturnValue = string>(
@@ -106,6 +112,14 @@ export type DynamicOnceTransformFn<RemoteConfig> = <ReturnValue = string>(
 export type DynamicStreamedTransformFn<RemoteConfig> = <ReturnValue = string>(
     propGetter?: (config: RemoteConfig) => ReturnValue,
 ) => DynamicStreamedTransformConfig<RemoteConfig, ReturnValue>;
+
+export type DynamicPromiseTransformFn = <ReturnValue = string>(
+    propGetter: () => Promise<ReturnValue>,
+) => DynamicPromiseTransformConfig<ReturnValue>;
+
+export type DynamicObservableTransformFn = <ReturnValue = string>(
+    propGetter: () => Observable<ReturnValue>,
+) => DynamicObservableTransformConfig<ReturnValue>;
 
 export interface EnvTransformConfig<ReturnValue = string> {
     __type: typeof REF_TYPES.ENV;
@@ -139,6 +153,16 @@ export interface DynamicStreamedTransformConfig<Config, ReturnValue = string> {
     __sym: symbol;
     propGetter?: (config: Config) => ReturnValue;
 }
+export interface DynamicPromiseTransformConfig<ReturnValue = string> {
+    __type: typeof REF_TYPES.DYNAMIC_PROMISE;
+    __sym: symbol;
+    propGetter: () => Promise<ReturnValue>;
+}
+export interface DynamicObservableTransformConfig<ReturnValue = string> {
+    __type: typeof REF_TYPES.DYNAMIC_OBSERVABLE;
+    __sym: symbol;
+    propGetter: () => Observable<ReturnValue>;
+}
 
 export type UnpackEnvConfig<T> = T extends EnvTransformConfig<infer V> ? V : never;
 export type UnpackRefConfig<T> = T extends RefTransformConfig<infer V> ? V : never;
@@ -150,6 +174,10 @@ export type UnpackDynamicOnceConfig<T> = T extends DynamicOnceTransformConfig<in
 export type UnpackDynamicStreamedConfig<T> = T extends DynamicStreamedTransformConfig<infer V, infer K>
     ? IStreamedRemoteConfigValue<V, K>
     : never;
+export type UnpackDynamicPromiseConfig<T> = T extends DynamicPromiseTransformConfig<infer K> ? Ref<Promise<K>> : never;
+export type UnpackDynamicObservableConfig<T> = T extends DynamicObservableTransformConfig<infer K>
+    ? Ref<Observable<K>>
+    : never;
 // this type tries to unpack the types one by one. If none of the configs match, it returns never
 type Unpacked<T> =
     | UnpackRefConfig<T>
@@ -157,14 +185,19 @@ type Unpacked<T> =
     | UnpackFileConfig<T>
     | UnpackValidatorSpec<T>
     | UnpackDynamicOnceConfig<T>
-    | UnpackDynamicStreamedConfig<T>;
+    | UnpackDynamicStreamedConfig<T>
+    | UnpackDynamicPromiseConfig<T>
+    | UnpackDynamicObservableConfig<T>;
 
 export type InternalTransform<T, TSchema = any> =
     | EnvTransformConfig<T>
     | RefTransformConfig<T>
     | FileTransformConfig<T>
     | DynamicOnceTransformConfig<TSchema, T>
-    | DynamicStreamedTransformConfig<TSchema, T>;
+    | DynamicStreamedTransformConfig<TSchema, T>
+    | DynamicPromiseTransformConfig<T>
+    | DynamicObservableTransformConfig<T>;
+
 export type AnyTransformStrict<T, TSchema = any> = InternalTransform<T, TSchema> | ValidatorSpec<T>;
 export type AnyTransform<T, TSchema = any> = T | AnyTransformStrict<T, TSchema>;
 
@@ -223,6 +256,10 @@ export interface BaseRegisterFnArgs<Config> {
     config: UnpackTransformConfigTypes<Config>;
     app: AppConfig;
     logger: PinoLogger;
+}
+export interface DynamicConfigFnArgs<Config> extends BaseRegisterFnArgs<Config> {
+    awaited: DynamicPromiseTransformFn;
+    streamed: DynamicObservableTransformFn;
 }
 
 export interface ResolveRegisterFnArgs<Config> extends BaseRegisterFnArgs<Config> {
