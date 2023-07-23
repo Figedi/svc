@@ -115,7 +115,7 @@ const $env: EnvalidTransformer = {
     url,
     json,
     file,
-    any: env, // @todo resolve legacy naming
+    any: env,
     ref,
 };
 
@@ -491,7 +491,7 @@ export class ApplicationBuilder<Config> {
             return;
         }
         const baseArgs = command.info.argv({
-            $arg: <O extends AllOptions>(opts: O) => ({ ...(opts as any), __type: "opt" } as InferredOptionType<O>),
+            $arg: <O extends AllOptions>(opts: O) => ({ ...(opts as any), __type: "opt" }) as InferredOptionType<O>,
         }) as Record<string, AllOptions>;
 
         const isArgvType = (v: any) => "__type" in v && v.__type === "opt";

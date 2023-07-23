@@ -48,7 +48,6 @@ type IsUnknown<T> = IsAny<T> extends true ? false : unknown extends T ? true : f
 
 type IsRequiredOrHasDefault<O extends AllOptions> = O extends { required: true } ? true : false;
 
-// @todo there is only type, alias, default, not required, thus everything is optional, aaaaaaaaarg
 export type InferredOptionType<O extends AllOptions> =
     // Handle special cases first
 
