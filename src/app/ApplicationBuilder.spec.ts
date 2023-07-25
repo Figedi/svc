@@ -93,6 +93,7 @@ describe("ApplicationBuilder", function AppBuilderTest() {
                         serviceName: 42,
                     }),
                 })
+
                 .registerDependency("meteringRecorder", () => new MeteringRecorder("svc_test"))
                 .registerDependency("dependencyA", () => ({ dependency: "value" }))
                 .registerDependency("dependencyB", ({ config }) => ({ dependency: config.a.deep.overwriteable }))

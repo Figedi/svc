@@ -195,6 +195,11 @@ export class ApplicationBuilder<Config> {
         ...this.buildBaseResolveArgs(),
     });
 
+    public reconfigure<TConf extends Config>(opts: {
+        appConfig: Partial<AppBuilderConfig>;
+        env?: never;
+        mode?: never;
+    }): ApplicationBuilder<DeepMerge<Config, TConf, AnyTransformStrict<any>>>;
     public reconfigure<TConf extends Record<string, any>>(opts: {
         appConfig: Partial<AppBuilderConfig>;
         env?: EnvFn<TConf>;
