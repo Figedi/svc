@@ -26,9 +26,10 @@ import type {
     DynamicPromiseTransformFn,
     DynamicObservableTransformFn,
     DynamicConfigFnArgs,
+    UnpackTransformConfigTypes,
 } from "./types";
 import type { RemoteDependencyArgs, IRemoteSource } from "./remoteConfig";
-import type { DeepMerge } from "./types/base";
+import type { DeepMerge, DeepPartial } from "./types/base";
 
 import { onExit } from "signal-exit";
 import { Container } from "inversify";
@@ -134,6 +135,8 @@ export type GetAppConfig<T> = T extends ApplicationBuilder<infer V>
     ? K
     : never;
 
+type PartialConfig<TConfig> = DeepPartial<UnpackTransformConfigTypes<TConfig>>;
+
 /**
  * Service-factory for initialization of services. This factory creates a base-service
  * and runs it as the single-entrypoint. As a result, use any instance in your index.ts and
@@ -192,11 +195,16 @@ export class ApplicationBuilder<Config> {
         ...this.buildBaseResolveArgs(),
     });
 
-    public reconfigure(opts: {
+    public reconfigure<TConf extends Record<string, any>>(opts: {
         appConfig: Partial<AppBuilderConfig>;
-        env?: never;
-        mode?: "merge" | "overwrite";
-    }): ApplicationBuilder<Config>;
+        env?: EnvFn<TConf>;
+        mode?: "merge";
+    }): ApplicationBuilder<DeepMerge<Config, TConf, AnyTransformStrict<any>>>;
+    public reconfigure<TConf extends Record<string, any>>(opts: {
+        appConfig: Partial<AppBuilderConfig>;
+        env?: EnvFn<TConf>;
+        mode?: "overwrite";
+    }): ApplicationBuilder<TConf>;
     public reconfigure<TConf extends Record<string, any>>(opts: {
         appConfig?: Partial<AppBuilderConfig>;
         env: EnvFn<TConf>;
@@ -654,12 +662,15 @@ export class ApplicationBuilder<Config> {
         );
     };
 
-    public async run<TResult = any>(
-        command?: string,
-    ): Promise<{ result: TResult; shutdownHandle?: () => Promise<void> }> {
+    public async run<TResult = any>(opts?: {
+        command?: string;
+        config?: PartialConfig<Config>;
+    }): Promise<{ result: TResult; shutdownHandle?: () => Promise<void> }> {
+        if (opts?.config) {
+            this.config = merge({}, this.config, opts.config);
+        }
         const argv: any = minimist(process.argv.slice(2), buildOptions({ command: { type: "string", alias: "c" } }));
-
-        const commandName = (command || argv.command || this.defaultCommandName) as string | undefined;
+        const commandName = (opts?.command || argv.command || this.defaultCommandName) as string | undefined;
         if (!commandName || typeof commandName !== "string") {
             const availableCommands = this.commandReferences.join("\n");
             const error = new Error(
@@ -675,6 +686,7 @@ export class ApplicationBuilder<Config> {
         if (this.appBuilderConfig.bindProcessSignals) {
             this.bindErrorSignals();
         }
+
         try {
             return await this.runCommand<TResult>(commandName);
         } catch (error: any) {

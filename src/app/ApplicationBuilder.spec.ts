@@ -61,6 +61,7 @@ describe("ApplicationBuilder", function AppBuilderTest() {
             process.env.A_DEEP_STR = "example_string";
             process.env.A_DEEP_BOOL = "0";
             process.env.A_DEEP_JSON = '{ "stringified": "json" }';
+            process.env.A_DEEP_OVERWRITEABLE = "i-am-overriden-in-run()";
             ApplicationBuilder.create({
                 bindProcessSignals: false,
                 loggerFactory: createStubbedLogger,
@@ -74,6 +75,7 @@ describe("ApplicationBuilder", function AppBuilderTest() {
                                 fileContent => ({ parsedContent: JSON.parse(fileContent.toString("utf-8")) }),
                             ),
                             bool: $env.bool(),
+                            overwriteable: $env.str(),
                             str: $env.str({ choices: ["example_string", "whatup"] }),
                             json: $env.json<{ foo: number }>(),
                         },
@@ -93,6 +95,7 @@ describe("ApplicationBuilder", function AppBuilderTest() {
                 })
                 .registerDependency("meteringRecorder", () => new MeteringRecorder("svc_test"))
                 .registerDependency("dependencyA", () => ({ dependency: "value" }))
+                .registerDependency("dependencyB", ({ config }) => ({ dependency: config.a.deep.overwriteable }))
                 .registerProvider("providerA", () => async () => ({ providerA: "value" }))
                 .registerProvider("providerB", ({ resolve }) => async () => ({
                     ...resolve<Record<string, string>>("dependencyA"),
@@ -102,10 +105,20 @@ describe("ApplicationBuilder", function AppBuilderTest() {
                     done(e);
                     return ErrorHandle.IGNORE;
                 })
-                .registerDefaultCommand("start", ({ resolve, config }) =>
-                    createDefaultCommand(resolve("providerB"), config.a.deep.bool, "0", done),
-                )
-                .run();
+                .registerDefaultCommand("start", ({ resolve, config }) => {
+                    expect(config.a.deep.overwriteable).to.eq("hello-new-value");
+                    expect(resolve("dependencyB")).to.deep.eq({ dependency: config.a.deep.overwriteable });
+                    return createDefaultCommand(resolve("providerB"), config.a.deep.bool, "0", done);
+                })
+                .run({
+                    config: {
+                        a: {
+                            deep: {
+                                overwriteable: "hello-new-value",
+                            },
+                        },
+                    },
+                });
         });
 
         it("returns a commands execute result", async () => {
