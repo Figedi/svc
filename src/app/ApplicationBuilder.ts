@@ -587,9 +587,16 @@ export class ApplicationBuilder<Config> {
         if (forceExit && this.appBuilderConfig.exitAfterRun) {
             process.exit(exitCode);
         }
+        this.rootLogger.debug(
+            {
+                servicesWithLifecycleHandlers: this.servicesWithLifecycleHandlers.map(s => s.constructor.name),
+            },
+            `Trying to shut down services`,
+        );
+
         try {
             await Promise.race([
-                sleep(this.appBuilderConfig.shutdownGracePeriodSeconds, true).then(() => {
+                sleep(this.appBuilderConfig.shutdownGracePeriodSeconds * 1000, true).then(() => {
                     const error = new Error("Timeout while graceful-shutdown, will exit now");
                     this.rootLogger.error({ reason }, error.message);
                     if (this.appBuilderConfig.exitAfterRun) {
@@ -607,7 +614,7 @@ export class ApplicationBuilder<Config> {
                 this.rootLogger.info({ reason }, `Successfully shut down all services. Goodbye 👋`);
             }
         } catch (e) {
-            this.rootLogger.info({ reason, error: e }, `Uncaught error while shutting-down: ${e.message}`);
+            this.rootLogger.error({ reason, error: e }, `Uncaught error while shutting-down: ${e.message}`);
             if (this.appBuilderConfig.exitAfterRun) {
                 process.exit(1);
             } else {
