@@ -52,7 +52,9 @@ import { MissingCommandArgsError } from "./errors";
 import { getRootDir, safeReadFile } from "./utils/util";
 import { BaseRemoteSource } from "./remoteConfig/remoteSource/BaseRemoteSource";
 import { DynamicConfigSource } from "./remoteConfig/remoteSource/DynamicConfigSource";
+import _debug from "debug";
 
+const debug = _debug("@figedi/svc");
 export type AppPreflightFn<C> = (container: RegisterFnArgs<C>) => Promise<any> | any;
 
 export type ErrorHandlerFn<C> = (args: RegisterFnArgs<C>, e?: Error) => ErrorHandle | Promise<ErrorHandle>;
@@ -562,18 +564,28 @@ export class ApplicationBuilder<Config> {
     private async runCommand<TResult>(
         commandName: string,
     ): Promise<{ result: TResult; shutdownHandle?: () => Promise<void> }> {
+        debug("Running command");
         await Promise.all(this.preflightFns.map(fn => fn(this.buildResolveArgs(this.container))));
+        debug("Ran all global-preflight fns");
         const command = this.container.get<Command<any, TResult>>(commandName);
+        debug("Resolved ioc-container");
         const argv = this.parseCommandArgs(command);
 
         await Promise.all(this.servicesWithLifecycleHandlers.map(svc => svc.preflight && svc.preflight()));
+        debug("Ran all service-preflight fns");
         const commandResult = await command.execute({ logger: this.rootLogger, app: this.app, argv });
+        debug("Executed command");
         let shutdownHandle;
 
         if (this.appBuilderConfig.deferredShutdownHandle) {
-            shutdownHandle = () => this.handleShutdown({ reason: "SVC_ENDED", code: 0 });
+            shutdownHandle = async () => {
+                const result = await this.handleShutdown({ reason: "SVC_ENDED", code: 0 });
+                debug("Ran deferred shutdown successfully");
+                return result;
+            };
         } else {
             await this.handleShutdown({ reason: "SVC_ENDED", code: 0 });
+            debug("Ran shutdown successfully");
         }
         return { result: commandResult, shutdownHandle };
     }
@@ -607,6 +619,7 @@ export class ApplicationBuilder<Config> {
                 }),
                 Promise.all(this.servicesWithLifecycleHandlers.map(svc => svc.shutdown && svc.shutdown())),
             ]);
+            debug("Ran all service shutdown handlers");
             if (this.appBuilderConfig.exitAfterRun) {
                 this.rootLogger.info({ reason }, `Successfully shut down all services. Reason ${reason}. Goodbye 👋`);
                 process.exit(exitCode);
@@ -652,6 +665,7 @@ export class ApplicationBuilder<Config> {
         const shutdownHandlerResults = await Promise.allSettled(
             this.shutdownHandlers.map(errorFn => errorFn(this.buildResolveArgs(this.container), args.reason)),
         );
+        debug("Ran all global shutdown handlers");
 
         if (shutdownHandlerResults.some(r => r.status === "rejected")) {
             this.rootLogger.info("Some shutdown handlers were rejected, will exit immediately");
@@ -678,10 +692,12 @@ export class ApplicationBuilder<Config> {
         command?: string;
         config?: PartialConfig<Config>;
     }): Promise<{ result: TResult; shutdownHandle?: () => Promise<void> }> {
+        debug("Init run()");
         if (opts?.config) {
             this.config = merge({}, this.config, opts.config);
         }
         const argv: any = minimist(process.argv.slice(2), buildOptions({ command: { type: "string", alias: "c" } }));
+        debug("Processed argv");
         const commandName = (opts?.command || argv.command || this.defaultCommandName) as string | undefined;
         if (!commandName || typeof commandName !== "string") {
             const availableCommands = this.commandReferences.join("\n");
