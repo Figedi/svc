@@ -607,17 +607,31 @@ export class ApplicationBuilder<Config> {
         );
 
         try {
+            const shutdownServices = new Set<ServiceWithLifecycleHandlers>(this.servicesWithLifecycleHandlers);
             await Promise.race([
                 sleep(this.appBuilderConfig.shutdownGracePeriodSeconds * 1000, true).then(() => {
                     const error = new Error("Timeout while graceful-shutdown, will exit now");
-                    this.rootLogger.error({ reason }, error.message);
+                    this.rootLogger.error(
+                        {
+                            remainingServicesWithLifecycleHandlers: Array.from(shutdownServices).map(
+                                s => s.constructor.name,
+                            ),
+                            reason,
+                        },
+                        error.message,
+                    );
                     if (this.appBuilderConfig.exitAfterRun) {
                         process.exit(1);
                     } else {
                         throw error;
                     }
                 }),
-                Promise.all(this.servicesWithLifecycleHandlers.map(svc => svc.shutdown && svc.shutdown())),
+                Promise.all(
+                    this.servicesWithLifecycleHandlers.map(async svc => {
+                        await svc.shutdown?.();
+                        shutdownServices.delete(svc);
+                    }),
+                ),
             ]);
             debug("Ran all service shutdown handlers");
             if (this.appBuilderConfig.exitAfterRun) {
