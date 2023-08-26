@@ -33,7 +33,7 @@ import type { DeepMerge, DeepPartial } from "./types/base";
 
 import { onExit } from "signal-exit";
 import { Container } from "inversify";
-import { pick, kebabCase, uniq, camelCase, once as _once, merge, mergeWith, isUndefined } from "lodash";
+import { pick, kebabCase, uniq, camelCase, once as _once, merge, mergeWith, isUndefined, isPlainObject } from "lodash";
 import { set } from "lodash/fp";
 import { str, bool, num, host, port, url, json, cleanEnv } from "envalid";
 import { createLogger, type Logger } from "../logger";
@@ -50,7 +50,7 @@ import buildOptions from "minimist-options";
 import minimist from "minimist";
 import { MissingCommandArgsError } from "./errors";
 import { getRootDir, safeReadFile } from "./utils/util";
-import { BaseRemoteSource } from "./remoteConfig/remoteSource/BaseRemoteSource";
+import type { BaseRemoteSource } from "./remoteConfig/remoteSource/BaseRemoteSource";
 import { DynamicConfigSource } from "./remoteConfig/remoteSource/DynamicConfigSource";
 import _debug from "debug";
 
@@ -291,20 +291,22 @@ export class ApplicationBuilder<Config> {
         };
         const source = sourceFn(baseArgs);
         let projectedConfig: TProjRemoteConfig;
-        if (source instanceof BaseRemoteSource) {
-            this.servicesWithLifecycleHandlers.push(source);
+
+        if (isPlainObject(source)) {
+            const sourceArtefact = new DynamicConfigSource(source as TProjRemoteConfig);
+            this.servicesWithLifecycleHandlers.push(sourceArtefact);
+
+            projectedConfig = sourceArtefact.init();
+        } else {
+            const sourceTyped = source as BaseRemoteSource<any, any>;
+            this.servicesWithLifecycleHandlers.push(sourceTyped);
             const dependencyArgs = { once, streamed } as RemoteDependencyArgs<TRemoteConfig>;
-            const { config, lifecycleArtefacts } = source.init(dependencyArgs);
+            const { config, lifecycleArtefacts } = sourceTyped.init(dependencyArgs);
             if (lifecycleArtefacts?.length) {
                 this.servicesWithLifecycleHandlers.push(...lifecycleArtefacts);
             }
 
             projectedConfig = config;
-        } else {
-            const sourceArtefact = new DynamicConfigSource(source as TProjRemoteConfig);
-            this.servicesWithLifecycleHandlers.push(sourceArtefact);
-
-            projectedConfig = sourceArtefact.init();
         }
 
         this.config = mergeWith({}, this.config, projectedConfig, obj => {
@@ -610,6 +612,9 @@ export class ApplicationBuilder<Config> {
             const shutdownServices = new Set<ServiceWithLifecycleHandlers>(this.servicesWithLifecycleHandlers);
             await Promise.race([
                 sleep(this.appBuilderConfig.shutdownGracePeriodSeconds * 1000, true).then(() => {
+                    if (shutdownServices.size === 0) {
+                        return;
+                    }
                     const error = new Error("Timeout while graceful-shutdown, will exit now");
                     this.rootLogger.error(
                         {
