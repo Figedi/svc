@@ -89,7 +89,7 @@ export class PollingRemoteSource<TProject, Schema>
     implements IRemoteSource<TProject, Schema>
 {
     private config!: PollingRemoteSourceConfig<Schema, TProject>;
-    private pollingTimeout?: NodeJS.Timer;
+    private pollingTimeout?: NodeJS.Timeout;
 
     constructor(config: PollingRemoteSourceConfig<Schema, TProject>) {
         super(

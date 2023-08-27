@@ -229,7 +229,6 @@ export type AddTransformConfigToPrimitives<T, TSchema = any> = T extends Primiti
 
 export type AppConfig = {
     startedAt: Date;
-    rootPath: string;
     version?: string;
     envName: string;
 };

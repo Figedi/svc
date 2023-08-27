@@ -47,7 +47,6 @@ import { ShutdownHandle, ErrorHandle, REF_SYMBOLS, REF_TYPES, isTransformer } fr
 import buildOptions from "minimist-options";
 import minimist from "minimist";
 import { MissingCommandArgsError } from "./errors";
-import { getRootDir } from "./utils/util";
 import type { BaseRemoteSource } from "./remoteConfig/remoteSource/BaseRemoteSource";
 import { DynamicConfigSource } from "./remoteConfig/remoteSource/DynamicConfigSource";
 import _debug from "debug";
@@ -259,7 +258,6 @@ export class ApplicationBuilder<Config> {
         this.app = {
             envName,
             startedAt: new Date(),
-            rootPath: getRootDir(),
             version: process.env.npm_package_version,
         };
 
@@ -717,7 +715,10 @@ export class ApplicationBuilder<Config> {
     });
 
     private bindErrorSignals = () => {
-        onExit(code => this.handleShutdown({ reason: "EXIT", code: code ?? 1 }));
+        onExit(code => {
+            // run away promise
+            this.handleShutdown({ reason: "EXIT", code: code ?? 1 });
+        });
         process.on("uncaughtException", error => this.handleError({ error, reason: "UNCAUGHT_EXCEPTION" }));
         process.on("unhandledRejection", reason =>
             this.handleError({ ...(reason instanceof Error ? { error: reason } : {}), reason: "UNHANDLED_REJECTION" }),
