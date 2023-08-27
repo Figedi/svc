@@ -1,14 +1,5 @@
 export const isNode = typeof process !== "undefined" && process.versions != null && process.versions.node != null;
 
-// @todo wait for https://nodejs.org/api/esm.html#importmetaresolvespecifier-parent
-export const safeReadFile = async (filePath: string): Promise<Buffer> => {
-    if (isNode) {
-        return import("node:fs/promises").then(mod => mod.readFile(filePath));
-    }
-    // @todo implement
-    throw new Error("edge-runtime not supported yet");
-};
-
 const getFirstPartFromNodeModules = (resolved: string): string | null => {
     if (resolved.indexOf("/node_modules") !== -1) {
         const parts = resolved.split("/node_modules");

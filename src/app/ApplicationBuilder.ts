@@ -15,8 +15,6 @@ import type {
     Command,
     ResolveRegisterFnArgs,
     BaseRegisterFnArgs,
-    FileTransformFn,
-    FileTransformConfig,
     EnvalidTransformer,
     AnyTransformStrict,
     InferredOptionType,
@@ -49,7 +47,7 @@ import { ShutdownHandle, ErrorHandle, REF_SYMBOLS, REF_TYPES, isTransformer } fr
 import buildOptions from "minimist-options";
 import minimist from "minimist";
 import { MissingCommandArgsError } from "./errors";
-import { getRootDir, safeReadFile } from "./utils/util";
+import { getRootDir } from "./utils/util";
 import type { BaseRemoteSource } from "./remoteConfig/remoteSource/BaseRemoteSource";
 import { DynamicConfigSource } from "./remoteConfig/remoteSource/DynamicConfigSource";
 import _debug from "debug";
@@ -78,13 +76,6 @@ const ref: RefTransformFn = (referenceValue, refTransformFn) => ({
     refTransformFn,
     __type: REF_TYPES.REF,
     __sym: REF_SYMBOLS.REF,
-});
-
-const file: FileTransformFn = (filePath, fileTransformFn) => ({
-    filePath,
-    fileTransformFn,
-    __type: REF_TYPES.FILE,
-    __sym: REF_SYMBOLS.FILE,
 });
 
 const once: DynamicOnceTransformFn<any> = propGetter => ({
@@ -118,7 +109,6 @@ const $env: EnvalidTransformer = {
     port,
     url,
     json,
-    file,
     any: env,
     ref,
 };
@@ -321,19 +311,6 @@ export class ApplicationBuilder<Config> {
     }
 
     private configTransformers: TreeNodeTransformerConfig[] = [
-        {
-            predicate: value => !!value && value.__type === REF_TYPES.FILE,
-            transform: async ({ filePath, fileTransformFn }: FileTransformConfig) => {
-                const resolvedPath = typeof filePath === "function" ? filePath({ app: this.app }) : filePath;
-                // @todo guard clause for non node envs for better errors
-                const fileContent = await safeReadFile(resolvedPath);
-                if (fileTransformFn) {
-                    const result = await fileTransformFn?.(fileContent);
-                    return result;
-                }
-                return fileContent;
-            },
-        },
         {
             predicate: value => !!value && value.__type === REF_TYPES.ENV,
             transform: ({ transformFn, defaultValue }: EnvTransformConfig, path) => {

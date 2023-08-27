@@ -60,7 +60,6 @@ export type EnvFn<Config extends Record<string, any>> = (
 export type EnvalidTransformer = {
     any: EnvTransformFn;
     ref: RefTransformFn;
-    file: FileTransformFn;
     str: <T extends string = string>(spec?: Spec<T>) => ValidatorSpec<string>;
     host: <T extends string = string>(spec?: Spec<T>) => ValidatorSpec<string>;
     url: <T extends string = string>(spec?: Spec<T>) => ValidatorSpec<string>;
@@ -73,7 +72,6 @@ export type EnvalidTransformer = {
 export const REF_TYPES = {
     ENV: 0,
     REF: 1,
-    FILE: 2,
     DYNAMIC_ONCE: 3,
     DYNAMIC_STREAMED: 4,
     DYNAMIC_PROMISE: 5,
@@ -83,7 +81,6 @@ export const REF_TYPES = {
 export const REF_SYMBOLS = {
     ENV: Symbol.for("@figedi/svc-transform-env"),
     REF: Symbol.for("@figedi/svc-transform-ref"),
-    FILE: Symbol.for("@figedi/svc-transform-file"),
     DYNAMIC_ONCE: Symbol.for("@figedi/svc-transform-dynamic-once"),
     DYNAMIC_STREAMED: Symbol.for("@figedi/svc-transform-dynamic-streamed"),
     DYNAMIC_PROMISE: Symbol.for("@figedi/svc-transform-dynamic-promise"),
@@ -99,11 +96,6 @@ export type RefTransformFn = <ReturnValue = string>(
     referenceValue: string,
     refTransformFn?: (value?: string) => ReturnValue,
 ) => RefTransformConfig<ReturnValue>;
-
-export type FileTransformFn = <ReturnValue = Buffer>(
-    filePath: string | ((env: Omit<DependencyArgs, "$env">) => string),
-    fileTransformFn?: (value: Buffer) => ReturnValue,
-) => FileTransformConfig<ReturnValue>;
 
 export type DynamicOnceTransformFn<RemoteConfig> = <ReturnValue = string>(
     propGetter?: (config: RemoteConfig) => ReturnValue,
@@ -135,13 +127,6 @@ export interface RefTransformConfig<ReturnValue = string> {
     refTransformFn?: (value?: string) => ReturnValue;
 }
 
-export interface FileTransformConfig<ReturnValue = Buffer> {
-    __type: typeof REF_TYPES.FILE;
-    __sym: symbol;
-    filePath: string | ((env: Omit<DependencyArgs, "$env">) => string);
-    fileTransformFn?: (fileBuffer: Buffer) => ReturnValue | Promise<ReturnValue>;
-}
-
 export interface DynamicOnceTransformConfig<Config, ReturnValue = string> {
     __type: typeof REF_TYPES.DYNAMIC_ONCE;
     __sym: symbol;
@@ -166,7 +151,6 @@ export interface DynamicObservableTransformConfig<ReturnValue = string> {
 
 export type UnpackEnvConfig<T> = T extends EnvTransformConfig<infer V> ? V : never;
 export type UnpackRefConfig<T> = T extends RefTransformConfig<infer V> ? V : never;
-export type UnpackFileConfig<T> = T extends FileTransformConfig<infer V> ? Promise<V> : never;
 export type UnpackValidatorSpec<T> = T extends ValidatorSpec<infer V> ? V : never;
 export type UnpackDynamicOnceConfig<T> = T extends DynamicOnceTransformConfig<infer V, infer K>
     ? IOnceRemoteConfigValue<V, K>
@@ -182,7 +166,6 @@ export type UnpackDynamicObservableConfig<T> = T extends DynamicObservableTransf
 type Unpacked<T> =
     | UnpackRefConfig<T>
     | UnpackEnvConfig<T>
-    | UnpackFileConfig<T>
     | UnpackValidatorSpec<T>
     | UnpackDynamicOnceConfig<T>
     | UnpackDynamicStreamedConfig<T>
@@ -192,7 +175,6 @@ type Unpacked<T> =
 export type InternalTransform<T, TSchema = any> =
     | EnvTransformConfig<T>
     | RefTransformConfig<T>
-    | FileTransformConfig<T>
     | DynamicOnceTransformConfig<TSchema, T>
     | DynamicStreamedTransformConfig<TSchema, T>
     | DynamicPromiseTransformConfig<T>

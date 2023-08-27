@@ -69,11 +69,6 @@ describe("ApplicationBuilder", function AppBuilderTest() {
                 .addConfig(({ $env }) => ({
                     a: {
                         deep: {
-                            fileVal: $env.file(
-                                ({ app }) => `${app.rootPath}/resources/example.json`,
-                                // for testability, the file is being parsed as json
-                                fileContent => ({ parsedContent: JSON.parse(fileContent.toString("utf-8")) }),
-                            ),
                             bool: $env.bool(),
                             overwriteable: $env.str(),
                             str: $env.str({ choices: ["example_string", "whatup"] }),
