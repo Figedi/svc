@@ -27,17 +27,17 @@ Example for index entry file
 import { ApplicationBuilder, ExecuteCommandArgs } from "@figedi/svc";
 
 ApplicationBuilder.create()
-    .setEnv(({ env }) => ({
+    .addConfig(({ env }) => ({
         serviceName: env(), // translates to SERVICE_NAME
         nested: {
             value: env(), // translates to NESTED_VALUE
         },
         constant: 'constant' // no env needed
     }))
-    // 
+    
     /**
      * sync dependency, e.g. a service-class, an object etc.
-     * config is fully-typed through the setEnv structure.
+     * config is fully-typed through the addConfig structure.
      * Other properties in the callback-param are:
      * - resolve: Resolve other dependencies in the ioc-container
      * - app: Generic App-flags/-settings
@@ -113,7 +113,7 @@ const reactsOn: ReactsOnFn<ConfigRepository> = () => false;
 
 // note that the app-builder receives this time the typings of the remote-config
 ApplicationBuilder.create<ConfigRepository>()
-    .setEnv(({ env }) => ({
+    .addConfig(({ env }) => ({
         constant: 'constant' ,
         configEndpoint: 'http://config-svc.figedi.de',
     }))

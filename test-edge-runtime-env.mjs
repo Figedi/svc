@@ -15,7 +15,7 @@ ${sanitized};
 ApplicationBuilder.create({
     bindProcessSignals: false,
 })
-    .setEnv(({ $env }) => ({
+    .addConfig(({ $env }) => ({
         a: {
             deep: {
                 fileVal: $env.file(

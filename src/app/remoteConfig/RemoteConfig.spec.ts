@@ -42,7 +42,7 @@ const createTestApplicationBuilder = (
     const appBuilder = ApplicationBuilder.create<ConfigRepository>({
         loggerFactory: createStubbedLogger,
     })
-        .setEnv(() => ({
+        .addConfig(() => ({
             serviceName: "example-svc",
             environmentName: "dev",
         }))

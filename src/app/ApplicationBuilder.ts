@@ -55,6 +55,7 @@ import { DynamicConfigSource } from "./remoteConfig/remoteSource/DynamicConfigSo
 import _debug from "debug";
 
 const debug = _debug("@figedi/svc");
+
 export type AppPreflightFn<C> = (container: RegisterFnArgs<C>) => Promise<any> | any;
 
 export type ErrorHandlerFn<C> = (args: RegisterFnArgs<C>, e?: Error) => ErrorHandle | Promise<ErrorHandle>;
@@ -169,7 +170,7 @@ export class ApplicationBuilder<Config> {
     public config: Config = {} as Config;
     public servicesWithLifecycleHandlers: ServiceWithLifecycleHandlers[] = [];
 
-    static create = <C = never>(config: Partial<AppBuilderConfig> = defaultAppBuilderConfig): ApplicationBuilder<C> =>
+    static create = <C = {}>(config: Partial<AppBuilderConfig> = defaultAppBuilderConfig): ApplicationBuilder<C> =>
         new ApplicationBuilder<C>(config);
 
     private constructor(appConfig: Partial<AppBuilderConfig>) {
@@ -383,11 +384,20 @@ export class ApplicationBuilder<Config> {
      *
      *
      */
-    public setEnv<C extends Record<string, any>>(envFn: EnvFn<C>): ApplicationBuilder<C> {
+    public addConfig<TConf extends Record<string, any>>(
+        envFn: EnvFn<TConf>,
+    ): ApplicationBuilder<DeepMerge<Config, TConf, AnyTransformStrict<any>>> {
         // @todo somehow allow async transformers, this however needs async DI injection ? (or use the fact that we have lifecycles, so config is materialized before resolution phase)
-        this.config = remapTree(envFn({ $env, app: this.app }), ...this.configTransformers);
+        const projectedConfig = remapTree(envFn({ $env, app: this.app }), ...this.configTransformers);
 
-        return this as any as ApplicationBuilder<C>;
+        this.config = mergeWith({}, this.config, projectedConfig, obj => {
+            if (isTransformer(obj)) {
+                return obj;
+            }
+            return undefined;
+        });
+
+        return this as any as ApplicationBuilder<DeepMerge<Config, TConf, AnyTransformStrict<any>>>;
     }
 
     /**

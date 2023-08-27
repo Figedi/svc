@@ -51,7 +51,7 @@ export class TestApplicationBuilder<Config> {
     ): TestApplicationBuilder<C> {
         const newConfig = overwriteConfigFn(this.getAppBuilderProp<UnpackTransformConfigTypes<Config>>("config"));
 
-        this.appBuilder = this.appBuilder.setEnv(() => <any>newConfig);
+        this.appBuilder = this.appBuilder.addConfig(() => <any>newConfig) as ApplicationBuilder<Config>;
         return this as any as TestApplicationBuilder<C>;
     }
 

@@ -66,7 +66,7 @@ describe("ApplicationBuilder", function AppBuilderTest() {
                 bindProcessSignals: false,
                 loggerFactory: createStubbedLogger,
             })
-                .setEnv(({ $env }) => ({
+                .addConfig(({ $env }) => ({
                     a: {
                         deep: {
                             fileVal: $env.file(
@@ -120,6 +120,45 @@ describe("ApplicationBuilder", function AppBuilderTest() {
                         },
                     },
                 });
+        });
+
+        it("should be able to extend app builders", async () => {
+            process.env.NUM_A1 = "40";
+            process.env.NUM_A2 = "2";
+            process.env.STR_B = "The answer to the universe is:";
+            const appBuilderA = ApplicationBuilder.create({
+                loggerFactory: createStubbedLogger,
+                bindProcessSignals: false,
+                exitAfterRun: false,
+            })
+                .addConfig(({ $env }) => ({
+                    numA1: $env.num(),
+                }))
+                .addConfig(({ $env }) => ({
+                    numA2: $env.num(),
+                }))
+                .registerDependency("testDepA1", ({ config }) => ({ num: config.numA1 }));
+
+            const appBuilderB = appBuilderA
+                .addConfig(({ $env }) => ({
+                    strB: $env.str(),
+                }))
+                .registerDependency("testDepB", ({ resolve, config }) => ({
+                    strB: `${config.strB} ${resolve<{ num: number }>("testDepA1").num + config.numA2}`,
+                }))
+                .registerDefaultCommand("commandB", ({ resolve }) => ({
+                    info: {
+                        name: "commandB",
+                    },
+                    async execute() {
+                        return resolve("testDepB");
+                    },
+                }));
+            const { result } = await appBuilderB.run();
+
+            expect(result).to.deep.eq({
+                strB: `The answer to the universe is: 42`,
+            });
         });
 
         it("returns a commands execute result", async () => {

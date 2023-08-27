@@ -1,4 +1,4 @@
-const { ApplicationBuilder } = require("./dist/app/index");
+const { ApplicationBuilder } = require("./dist/index");
 
 process.env.A_DEEP_STR = "example_string";
 process.env.A_DEEP_BOOL = "0";
@@ -7,7 +7,7 @@ process.env.A_DEEP_JSON = '{ "stringified": "json" }';
 ApplicationBuilder.create({
     bindProcessSignals: false,
 })
-    .setEnv(({ $env }) => ({
+    .addConfig(({ $env }) => ({
         a: {
             deep: {
                 fileVal: $env.file(

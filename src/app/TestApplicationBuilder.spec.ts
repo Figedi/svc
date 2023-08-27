@@ -14,7 +14,7 @@ describe("TestApplicationBuilder", () => {
     });
 
     const appBuilder = ApplicationBuilder.create()
-        .setEnv(() => ({
+        .addConfig(() => ({
             serviceName: "example-svc",
             environmentName: "dev",
         }))
