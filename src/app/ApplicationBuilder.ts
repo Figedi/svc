@@ -130,6 +130,12 @@ export type GetAppConfig<T> = T extends ApplicationBuilder<infer V>
 
 type PartialConfig<TConfig> = DeepPartial<UnpackTransformConfigTypes<TConfig>>;
 
+export enum AppBuilderBindings {
+    LOGGER = "LOGGER",
+    CONFIG = "CONFIG",
+    APP = "APP",
+}
+
 /**
  * Service-factory for initialization of services. This factory creates a base-service
  * and runs it as the single-entrypoint. As a result, use any instance in your index.ts and
@@ -256,8 +262,20 @@ export class ApplicationBuilder<Config> {
             rootPath: getRootDir(),
             version: process.env.npm_package_version,
         };
+
+        this.bindAppBuilderBinding(AppBuilderBindings.LOGGER, this.rootLogger);
+        this.bindAppBuilderBinding(AppBuilderBindings.APP, this.app);
+
         return this as any;
     }
+
+    private bindAppBuilderBinding = (sym: AppBuilderBindings, val: any) => {
+        if (this.container.isBound(sym)) {
+            this.container.rebind(sym).toConstantValue(val);
+        } else {
+            this.container.bind(sym).toConstantValue(val);
+        }
+    };
 
     /**
      * Sets up a remote-config handler. The setup consists of 3 different components:
@@ -374,6 +392,8 @@ export class ApplicationBuilder<Config> {
             return undefined;
         });
 
+        this.bindAppBuilderBinding(AppBuilderBindings.CONFIG, this.config);
+
         return this as any as ApplicationBuilder<DeepMerge<Config, TConf, AnyTransformStrict<any>>>;
     }
 
@@ -410,9 +430,16 @@ export class ApplicationBuilder<Config> {
         name: string,
         registerFn: (args: RegisterFnArgs<Config>) => T extends Promise<any> ? never : T,
     ): ApplicationBuilder<Config> {
-        this.container
-            .bind(name)
-
+        if (Object.values(AppBuilderBindings).some(b => b === name)) {
+            throw new Error("Cannot register dependency with the same name as internal-bindings");
+        }
+        let binding: interfaces.BindingToSyntax<any>;
+        if (this.container.isBound(name)) {
+            binding = this.container.rebind(name);
+        } else {
+            binding = this.container.bind(name);
+        }
+        binding
             .toDynamicValue(context => {
                 try {
                     const inst = registerFn(this.buildResolveArgs(context.container));
@@ -443,6 +470,9 @@ export class ApplicationBuilder<Config> {
         name: string,
         registerFn: (args: RegisterFnArgs<Config>) => Provider<T>,
     ): ApplicationBuilder<Config> {
+        if (Object.values(AppBuilderBindings).some(b => b === name)) {
+            throw new Error("Cannot register provider with the same name as internal-bindings");
+        }
         this.container.bind(name).toProvider(context => registerFn(this.buildResolveArgs(context.container)));
         return this;
     }

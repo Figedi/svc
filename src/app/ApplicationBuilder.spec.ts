@@ -2,9 +2,9 @@ import { MeteringRecorder } from "@figedi/metering";
 import { expect } from "chai";
 import { assert, stub } from "sinon";
 
-import { ApplicationBuilder } from "./ApplicationBuilder";
-import { type Command, type Provider, ErrorHandle, ShutdownHandle } from "./types/app";
-import { createStubbedLogger } from "../logger";
+import { AppBuilderBindings, ApplicationBuilder } from "./ApplicationBuilder";
+import { type Command, type Provider, ErrorHandle, ShutdownHandle, type AppConfig } from "./types/app";
+import { type Logger, createStubbedLogger } from "../logger";
 
 describe("ApplicationBuilder", function AppBuilderTest() {
     this.timeout(20000);
@@ -154,6 +154,36 @@ describe("ApplicationBuilder", function AppBuilderTest() {
             expect(result).to.deep.eq({
                 strB: `The answer to the universe is: 42`,
             });
+        });
+
+        it("binds default app-builder-artefacts", async () => {
+            process.env.NUM_A1 = "42";
+            process.env.NUM_A2 = "21";
+            const appBuilderA = ApplicationBuilder.create({
+                loggerFactory: createStubbedLogger,
+                bindProcessSignals: false,
+                exitAfterRun: false,
+            })
+                .addConfig(({ $env }) => ({
+                    numA1: $env.num(),
+                    strA: "test",
+                }))
+                .addConfig(({ $env }) => ({
+                    numA2: $env.str(),
+                }));
+
+            const app = appBuilderA.container.get<AppConfig>(AppBuilderBindings.APP);
+            const logger = appBuilderA.container.get<Logger>(AppBuilderBindings.LOGGER);
+            const config = appBuilderA.container.get(AppBuilderBindings.CONFIG);
+
+            expect(config).to.deep.eq({
+                numA1: 42,
+                numA2: "21",
+                strA: "test",
+            });
+            expect(logger.info).to.not.eq(undefined);
+            expect(app.envName).to.eq("[unknown]");
+            expect(app.version).to.eq("1.0.0");
         });
 
         it("returns a commands execute result", async () => {
