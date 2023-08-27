@@ -1,4 +1,4 @@
-import { kebabCase, set, isArray, isPlainObject, mapValues } from "lodash";
+import { kebabCase, set, isArray, isObjectLike, mapValues } from "lodash";
 
 export interface TreeNodeTransformerConfig {
     predicate: (refValue: any, path: (string | number)[]) => boolean;
@@ -13,7 +13,7 @@ const walk = (tree: any, pathMemo: (string | number)[], ...transformers: TreeNod
     if (isArray(tree)) {
         return tree.map((v, i) => walk(v, [...pathMemo, i], ...transformers));
     }
-    if (isPlainObject(tree)) {
+    if (isObjectLike(tree)) {
         return mapValues(tree, (v, k) => walk(v, [...pathMemo, k], ...transformers));
     }
 
@@ -29,14 +29,15 @@ export const reduceTree = <TOutput>(
     Object.entries(tree).reduce((acc, [k, v]) => {
         const keys = [...pathMemo, k];
         const predFullfilled = predicate(v);
-        if (isPlainObject(v) && !predFullfilled) {
-            const subtree = reduceTree(v, predicate, transformer, keys) as any;
-            return { ...acc, ...subtree };
-        }
         if (isArray(v)) {
             // ignore arrays for now
             return acc;
         }
+        if (isObjectLike(v) && !predFullfilled) {
+            const subtree = reduceTree(v, predicate, transformer, keys) as any;
+            return { ...acc, ...subtree };
+        }
+
         if (!predFullfilled) {
             return acc;
         }
