@@ -516,6 +516,10 @@ export class ApplicationBuilder<Config> {
         return this.onShutdown(fn);
     }
 
+    private getArgv() {
+        return process?.argv ?? [];
+    }
+
     private parseCommandArgs<TArgs extends Record<string, any>>(
         command: Command<TArgs, any>,
     ): (TArgs & { $raw: ParsedArgs }) | undefined {
@@ -546,7 +550,7 @@ export class ApplicationBuilder<Config> {
         }
         const options = buildOptions(flattenedBaseArgs);
 
-        const convertedArgs = minimist(process.argv.slice(2), options) as Record<string, any>;
+        const convertedArgs = minimist(this.getArgv().slice(2), options) as Record<string, any>;
 
         /**
          * for compliance w/ tArgs, we need to re-nest again with the result of convertedArgs.
@@ -733,7 +737,7 @@ export class ApplicationBuilder<Config> {
         if (opts?.config) {
             this.config = merge({}, this.config, opts.config);
         }
-        const argv: any = minimist(process.argv.slice(2), buildOptions({ command: { type: "string", alias: "c" } }));
+        const argv: any = minimist(this.getArgv().slice(2), buildOptions({ command: { type: "string", alias: "c" } }));
         debug("Processed argv");
         const commandName = (opts?.command || argv.command || this.defaultCommandName) as string | undefined;
         if (!commandName || typeof commandName !== "string") {
