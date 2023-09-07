@@ -6,12 +6,12 @@ import { take } from "rxjs/operators";
 import { parse } from "semver";
 import stringify from "fast-json-stable-stringify";
 
-import { remapTreeAsync } from "../../utils";
-import { InvalidConfigWithoutDataError } from "./errors";
-import type { Logger } from "../../../logger";
-import type { IJsonDecryptor, RemoteDependencyArgs } from "../types";
-import type { ConfigMetrics } from "./types";
-import type { ServiceWithLifecycleHandlers } from "../../types";
+import { remapTreeAsync } from "../../utils/index.js";
+import { InvalidConfigWithoutDataError } from "./errors.js";
+import type { Logger } from "../../../logger/index.js";
+import type { IJsonDecryptor, RemoteDependencyArgs } from "../types/index.js";
+import type { ConfigMetrics } from "./types.js";
+import type { ServiceWithLifecycleHandlers } from "../../types/index.js";
 
 export abstract class BaseRemoteSource<TProject, Schema> {
     public value$!: Subject<Schema>;
@@ -47,7 +47,7 @@ export abstract class BaseRemoteSource<TProject, Schema> {
     protected validate(data: unknown): data is Schema {
         try {
             return this.validator!.validate(this.rootSchema!, data);
-        } catch (e) {
+        } catch (e: any) {
             if (e.constructor.name === "SchemaValidationError") {
                 return false;
             }

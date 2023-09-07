@@ -1,2 +1,2 @@
-export * from "./K8sReplicaService";
-export * from "./K8sRollingUpdateStrategy";
+export * from "./K8sReplicaService.js";
+export * from "./K8sRollingUpdateStrategy.js";

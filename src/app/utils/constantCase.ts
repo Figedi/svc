@@ -1,4 +1,4 @@
-import { snakeCase } from "lodash";
+import { snakeCase } from "lodash-es";
 
 export const toConstantCase = (textParts: (string | number)[]): string =>
     snakeCase(textParts.join("_"))

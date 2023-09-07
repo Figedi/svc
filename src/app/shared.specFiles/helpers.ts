@@ -1,8 +1,8 @@
 // eslint-disable-next-line import/no-extraneous-dependencies
 import { expect } from "chai";
-import type { TestApplicationBuilder } from "../TestApplicationBuilder";
-import type { RegisterFnArgs } from "../ApplicationBuilder";
-import { sleep } from "../utils";
+import type { TestApplicationBuilder } from "../TestApplicationBuilder.js";
+import type { RegisterFnArgs } from "../ApplicationBuilder.js";
+import { sleep } from "../utils/index.js";
 
 export const assertInTestAppBuilder = async <C>(
     testApp: TestApplicationBuilder<C>,
@@ -24,7 +24,7 @@ export const assertErrorInTestAppBuilder = async <C>(
     try {
         await testApp.runInContainer(async () => {});
         throw new Error("App-builder should throw");
-    } catch (e) {
+    } catch (e: any) {
         expect(e.message).to.not.equal("App-builder should throw");
         assertionFn(e);
     }

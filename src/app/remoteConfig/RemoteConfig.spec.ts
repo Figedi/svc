@@ -1,6 +1,7 @@
 import { getVersion, type ConfigRepository, getRootSchema, SCHEMA_BASE_DIR } from "@figedi/svc-config";
 import { SopsClient } from "@figedi/sops";
-import { KmsKeyDecryptor, setupStubbedKms } from "@figedi/sops/kms";
+// eslint-disable-next-line import/extensions
+import { KmsKeyDecryptor, setupStubbedKms } from "@figedi/sops/kms.js";
 import nock from "nock";
 import { expect } from "chai";
 import { assert, spy } from "sinon";
@@ -13,15 +14,15 @@ import {
     type StubbedResponses,
     type StubbedConfigValues,
     createUpdateStrategyStub,
-} from "./shared.specFiles";
-import { TestApplicationBuilder } from "../TestApplicationBuilder";
-import { PollingRemoteSource } from "./remoteSource/PollingRemoteSource";
-import { createStubbedLogger } from "../../logger";
-import { ApplicationBuilder } from "../ApplicationBuilder";
-import type { ReactsOnFn } from "./types";
-import { InvalidConfigWithoutDataError, MaxRetriesWithoutDataError } from "./remoteSource";
-import { sleep } from "../utils";
-import { assertInTestAppBuilder, assertErrorInTestAppBuilder } from "../shared.specFiles/helpers";
+} from "./shared.specFiles/index.js";
+import { TestApplicationBuilder } from "../TestApplicationBuilder.js";
+import { PollingRemoteSource } from "./remoteSource/PollingRemoteSource.js";
+import { createStubbedLogger } from "../../logger/index.js";
+import { ApplicationBuilder } from "../ApplicationBuilder.js";
+import type { ReactsOnFn } from "./types/index.js";
+import { InvalidConfigWithoutDataError, MaxRetriesWithoutDataError } from "./remoteSource/index.js";
+import { sleep } from "../utils/index.js";
+import { assertInTestAppBuilder, assertErrorInTestAppBuilder } from "../shared.specFiles/helpers.js";
 import { from } from "rxjs";
 
 const REMOTE_CONFIG_ENDPOINT = "http://localhost:8080"; // example endpoint, will never be executed due to nock

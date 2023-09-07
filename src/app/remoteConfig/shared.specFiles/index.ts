@@ -1,2 +1,2 @@
-export * from "./fixtures";
-export * from "./updateStrategyStub";
+export * from "./fixtures/index.js";
+export * from "./updateStrategyStub.js";

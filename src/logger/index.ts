@@ -12,7 +12,7 @@ export interface LoggerOptions<BaseProperties extends LoggerBaseProperties> {
 export type Logger = pino.Logger;
 
 export const createLogger = <T extends LoggerBaseProperties>(opts: LoggerOptions<T>): pino.Logger =>
-    pino({
+    pino.pino({
         level: opts.level,
         redact: {
             paths: ["*.password", "password", "*.token", "token", "*.secret", "secret"],
@@ -22,4 +22,4 @@ export const createLogger = <T extends LoggerBaseProperties>(opts: LoggerOptions
         timestamp: () => `,"timestamp":"${new Date().toISOString()}"`,
     });
 
-export const createStubbedLogger = (): pino.Logger => pino({ enabled: false });
+export const createStubbedLogger = (): pino.Logger => pino.pino({ enabled: false });

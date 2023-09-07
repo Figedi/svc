@@ -25,16 +25,26 @@ import type {
     DynamicObservableTransformFn,
     DynamicConfigFnArgs,
     UnpackTransformConfigTypes,
-} from "./types";
-import type { RemoteDependencyArgs, IRemoteSource } from "./remoteConfig";
-import type { DeepMerge, DeepPartial } from "./types/base";
+} from "./types/index.js";
+import type { RemoteDependencyArgs, IRemoteSource } from "./remoteConfig/index.js";
+import type { DeepMerge, DeepPartial } from "./types/base.js";
 
 import { onExit } from "signal-exit";
 import { Container } from "inversify";
-import { pick, kebabCase, uniq, camelCase, once as _once, merge, mergeWith, isUndefined, isPlainObject } from "lodash";
-import { set } from "lodash/fp";
+import {
+    pick,
+    kebabCase,
+    uniq,
+    camelCase,
+    once as _once,
+    merge,
+    mergeWith,
+    isUndefined,
+    isPlainObject,
+    set,
+} from "lodash-es";
 import { str, bool, num, host, port, url, json, cleanEnv } from "envalid";
-import { createLogger, type Logger } from "../logger";
+import { createLogger, type Logger } from "../logger/index.js";
 import {
     sleep,
     remapTree,
@@ -42,13 +52,13 @@ import {
     reduceTree,
     serviceWithPreflightOrShutdown,
     type TreeNodeTransformerConfig,
-} from "./utils";
-import { ShutdownHandle, ErrorHandle, REF_SYMBOLS, REF_TYPES, isTransformer } from "./types";
+} from "./utils/index.js";
+import { ShutdownHandle, ErrorHandle, REF_SYMBOLS, REF_TYPES, isTransformer } from "./types/index.js";
 import buildOptions from "minimist-options";
 import minimist from "minimist";
-import { MissingCommandArgsError } from "./errors";
-import type { BaseRemoteSource } from "./remoteConfig/remoteSource/BaseRemoteSource";
-import { DynamicConfigSource } from "./remoteConfig/remoteSource/DynamicConfigSource";
+import { MissingCommandArgsError } from "./errors.js";
+import type { BaseRemoteSource } from "./remoteConfig/remoteSource/BaseRemoteSource.js";
+import { DynamicConfigSource } from "./remoteConfig/remoteSource/DynamicConfigSource.js";
 import _debug from "debug";
 
 const debug = _debug("@figedi/svc");
@@ -182,7 +192,7 @@ export class ApplicationBuilder<Config> {
         resolve: <T>(serviceIdentifier: interfaces.ServiceIdentifier<T>): T => {
             try {
                 return container.get<T>(serviceIdentifier);
-            } catch (e) {
+            } catch (e: any) {
                 this.rootLogger.error(
                     { error: e },
                     `Error while resolving dependency '${String(serviceIdentifier)}': ${e.message}`,
@@ -445,7 +455,7 @@ export class ApplicationBuilder<Config> {
                         this.servicesWithLifecycleHandlers.push(inst);
                     }
                     return inst;
-                } catch (e) {
+                } catch (e: any) {
                     this.rootLogger.info(`Error while instantiating service '${name}': ${e.message}`);
                     throw e;
                 }
@@ -548,7 +558,7 @@ export class ApplicationBuilder<Config> {
                 `Encounted reserved keyword in command-args, please change the arg-name to something different than '$raw' or 'command'`,
             );
         }
-        const options = buildOptions(flattenedBaseArgs);
+        const options = buildOptions.default(flattenedBaseArgs);
 
         const convertedArgs = minimist(this.getArgv().slice(2), options) as Record<string, any>;
 
@@ -566,11 +576,11 @@ export class ApplicationBuilder<Config> {
                 const parsedVal = convertedArgs[k as keyof typeof convertedArgs];
                 return {
                     missingPaths: v.required && isUndefined(parsedVal) ? [...acc.missingPaths, k] : acc.missingPaths,
-                    tree: set(v.__path, parsedVal)(acc.tree),
+                    tree: set(acc.tree, v.__path, parsedVal),
                 };
             },
 
-            { tree: {} as Record<string, any>, missingPaths: [] },
+            { tree: {} as Record<string, any>, missingPaths: [] as string[] },
         );
 
         if (missingPaths.length) {
@@ -664,7 +674,7 @@ export class ApplicationBuilder<Config> {
             } else {
                 this.rootLogger.info({ reason }, `Successfully shut down all services. Goodbye 👋`);
             }
-        } catch (e) {
+        } catch (e: any) {
             this.rootLogger.error({ reason, error: e }, `Uncaught error while shutting-down: ${e.message}`);
             if (this.appBuilderConfig.exitAfterRun) {
                 process.exit(1);
@@ -737,7 +747,10 @@ export class ApplicationBuilder<Config> {
         if (opts?.config) {
             this.config = merge({}, this.config, opts.config);
         }
-        const argv: any = minimist(this.getArgv().slice(2), buildOptions({ command: { type: "string", alias: "c" } }));
+        const argv: any = minimist(
+            this.getArgv().slice(2),
+            buildOptions.default({ command: { type: "string", alias: "c" } }),
+        );
         debug("Processed argv");
         const commandName = (opts?.command || argv.command || this.defaultCommandName) as string | undefined;
         if (!commandName || typeof commandName !== "string") {

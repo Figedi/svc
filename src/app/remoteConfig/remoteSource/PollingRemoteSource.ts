@@ -1,23 +1,23 @@
 import type { MeteringRecorder } from "@figedi/metering";
 import type { JSONSchema } from "@figedi/typecop";
 import axios, { type AxiosResponse } from "axios";
+import { share } from "rxjs";
 
-import { remapTree, sleep } from "../../utils";
-import { BaseRemoteSource } from "./BaseRemoteSource";
-import { MaxRetriesWithDataError, MaxRetriesWithoutDataError } from "./errors";
-import type { IJsonDecryptor, IReloadingStrategy, RemoteDependencyArgs } from "../types";
-import type { IRemoteSource } from "./types";
-import type { Logger } from "../../../logger";
+import { remapTree, sleep } from "../../utils/index.js";
+import { BaseRemoteSource } from "./BaseRemoteSource.js";
+import { MaxRetriesWithDataError, MaxRetriesWithoutDataError } from "./errors.js";
+import type { IJsonDecryptor, IReloadingStrategy, RemoteDependencyArgs } from "../types/index.js";
+import type { IRemoteSource } from "./types.js";
+import type { Logger } from "../../../logger/index.js";
 import {
     type AddTransformConfigToPrimitives,
     type DynamicOnceTransformConfig,
     type DynamicStreamedTransformConfig,
     type ServiceWithLifecycleHandlers,
     REF_TYPES,
-} from "../../types";
-import { RemoteConfigHandler } from "../RemoteConfigHandler";
-import { share } from "rxjs";
-import { OnceRemoteConfigValue, StreamedRemoteConfigValue } from "../remoteValues";
+} from "../../types/index.js";
+import { RemoteConfigHandler } from "../RemoteConfigHandler.js";
+import { OnceRemoteConfigValue, StreamedRemoteConfigValue } from "../remoteValues/index.js";
 
 export enum AcceptedVersionRange {
     none = "none",
@@ -205,7 +205,7 @@ export class PollingRemoteSource<TProject, Schema>
             const response = await this.fetchData(url);
             config = response.data.files;
             configVersion = response.data.id;
-        } catch (e) {
+        } catch (e: any) {
             if (e instanceof MaxRetriesWithDataError) {
                 return this.trySetNextState(this.lastValue!, configVersion);
             }

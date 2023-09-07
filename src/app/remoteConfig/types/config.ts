@@ -1,4 +1,4 @@
-import type { DynamicOnceTransformFn, DynamicStreamedTransformFn } from "../../types";
+import type { DynamicOnceTransformFn, DynamicStreamedTransformFn } from "../../types/index.js";
 
 export type RemoteDependencyArgs<RemoteConfig> = {
     streamed: DynamicStreamedTransformFn<RemoteConfig>;

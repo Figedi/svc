@@ -1,8 +1,8 @@
-import { set, cloneDeep } from "lodash";
+import { set, cloneDeep } from "lodash-es";
 // eslint-disable-next-line import/no-extraneous-dependencies
 import { getFallback, getVersion, type SecretsConfiguration } from "@figedi/svc-config";
-// eslint-disable-next-line import/no-extraneous-dependencies
-import { encryptJson } from "@figedi/sops/test";
+// eslint-disable-next-line import/no-extraneous-dependencies, import/extensions
+import { encryptJson } from "@figedi/sops/test.js";
 
 const modifyVersion = (semverVersion: string, patchFn: (major: number, minor: number, patch: number) => string) => {
     const [major, minor, patch] = semverVersion.split(".").map(parseInt);

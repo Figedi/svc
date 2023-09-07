@@ -4,11 +4,11 @@ import {
     type DynamicPromiseTransformConfig,
     type ServiceWithLifecycleHandlers,
     REF_TYPES,
-} from "../../types";
-import { remapTree } from "../../utils";
+} from "../../types/index.js";
+import { remapTree } from "../../utils/index.js";
 
 export class Ref<T> {
-    private value: T;
+    private value!: T;
 
     constructor(private factory: () => T) {}
 
@@ -61,7 +61,7 @@ export class DynamicConfigSource<TConfig> implements ServiceWithLifecycleHandler
         this.subscriptions = this.observableRefs.reduce((acc, ref) => {
             ref.init();
             return [...acc, ref.get().subscribe()];
-        }, []);
+        }, [] as Subscription[]);
         this.promiseRefs.forEach(r => r.init());
     }
 

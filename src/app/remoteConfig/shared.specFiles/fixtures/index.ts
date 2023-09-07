@@ -1,1 +1,1 @@
-export * from "./configValues";
+export * from "./configValues.js";

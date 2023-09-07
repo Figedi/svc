@@ -1,3 +1,3 @@
-export * from "./PollingRemoteSource";
-export * from "./types";
-export * from "./errors";
+export * from "./PollingRemoteSource.js";
+export * from "./types.js";
+export * from "./errors.js";

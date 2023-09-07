@@ -1,20 +1,27 @@
 import type { KubeConfig, CoreV1Api } from "@kubernetes/client-node";
-import { hostname } from "os";
-import type { IReplicaService } from "../app/remoteConfig";
-import type { Logger } from "../logger";
+import { hostname } from "node:os";
+import type { IReplicaService } from "../app/remoteConfig/index.js";
+import type { Logger } from "../logger/index.js";
 
 interface K8sReplicaServiceOpts {
     namespace: string; // the namespace the svc is deployed in, e.g. 'dev'
     commonLabel: string; // a label which is the same for all replicas, e.g. 'subservice'
+    k8sApi: CoreV1Api;
+    k8sConfig: KubeConfig;
 }
 
 export class K8sReplicaService implements IReplicaService {
-    private k8sApi?: CoreV1Api;
-    private kubeconfig?: KubeConfig;
+    private k8sApi!: CoreV1Api;
+    private k8sConfig!: KubeConfig;
     public projectId?: string;
     public serviceAccountPath?: string;
 
-    constructor(private logger: Logger, private opts: K8sReplicaServiceOpts) {
+    constructor(
+        private logger: Logger,
+        private opts: K8sReplicaServiceOpts,
+    ) {
+        this.k8sApi = opts.k8sApi;
+        this.k8sConfig = opts.k8sConfig;
         this.init();
     }
 
@@ -28,7 +35,7 @@ export class K8sReplicaService implements IReplicaService {
         try {
             // eslint-disable-next-line import/no-dynamic-require
             return require(process.env.KUBERNETES_SERVICE_ACCOUNT_PATH).project_id;
-        } catch (e) {
+        } catch (e: any) {
             this.logger.error({ error: e }, `Error while inferring projectId from serviceAccount: ${e.message}`);
             return undefined;
         }
@@ -43,34 +50,14 @@ export class K8sReplicaService implements IReplicaService {
         this.projectId = this.inferProjectId();
     }
 
-    private async getModule() {
-        if (this.kubeconfig) {
-            return;
-        }
-        // eslint-disable-next-line import/no-extraneous-dependencies
-        const mod = await import("@kubernetes/client-node");
-
-        this.kubeconfig = new mod.KubeConfig();
-        this.kubeconfig.loadFromDefault();
-        if (this.kubeconfig.getCurrentCluster()) {
-            this.k8sApi = this.kubeconfig.makeApiClient(mod.CoreV1Api);
-        }
-    }
-
     public async runsInK8s(): Promise<boolean> {
-        await this.getModule();
-        return !!this.k8sApi;
+        return !!this.k8sConfig.getCurrentCluster();
     }
 
     public async getNeighbourReplicaStatus(): Promise<{
         areNeighboursOlder?: boolean;
         areNeighboursUnhealthy?: boolean;
     }> {
-        await this.getModule();
-        // todo: return either types
-        if (!this.k8sApi) {
-            return {};
-        }
         const podList = await this.k8sApi.listNamespacedPod({ namespace: this.opts.namespace });
 
         const selfName = hostname();

@@ -1,6 +1,6 @@
 import { filter, concatMap, pairwise, startWith } from "rxjs/operators";
 import type { Observable, Subscription } from "rxjs";
-import type { ServiceWithLifecycleHandlers } from "../types/service";
+import type { ServiceWithLifecycleHandlers } from "../types/service.js";
 
 export class RemoteConfigHandler<ParentSchema> implements ServiceWithLifecycleHandlers {
     private subscription?: Subscription;

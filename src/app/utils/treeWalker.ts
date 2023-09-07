@@ -1,4 +1,4 @@
-import { kebabCase, set, isArray, isObjectLike, mapValues } from "lodash";
+import { kebabCase, set, isArray, isObjectLike, mapValues } from "lodash-es";
 
 export interface TreeNodeTransformerConfig {
     predicate: (refValue: any, path: (string | number)[]) => boolean;
@@ -42,7 +42,7 @@ export const reduceTree = <TOutput>(
             return acc;
         }
         return { ...acc, ...transformer(v, keys) };
-    }, []);
+    }, [] as TOutput);
 
 export const remapTree = (tree: any, ...transformers: TreeNodeTransformerConfig[]): any =>
     walk(tree, [], ...transformers);

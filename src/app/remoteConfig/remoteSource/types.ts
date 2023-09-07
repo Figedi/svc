@@ -1,7 +1,7 @@
 import type { Observable } from "rxjs";
 import type { Gauge } from "@figedi/metering";
-import type { ServiceWithLifecycleHandlers } from "../../types";
-import type { RemoteDependencyArgs } from "../types";
+import type { ServiceWithLifecycleHandlers } from "../../types/index.js";
+import type { RemoteDependencyArgs } from "../types/index.js";
 
 export interface IRemoteSource<TProject, Schema> {
     init: (args: RemoteDependencyArgs<Schema>) => {

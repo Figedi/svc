@@ -2,12 +2,12 @@ import type { Logger as PinoLogger } from "pino";
 import type { Container } from "inversify";
 import type { ValidatorSpec, Spec } from "envalid";
 import type { ParsedArgs } from "minimist";
-import type { Logger } from "../../logger";
-import type { Primitive } from "./base";
-import type { ArgvParsingParams, AddOptionType } from "./args";
-import type { IOnceRemoteConfigValue, IStreamedRemoteConfigValue } from "../remoteConfig/remoteValues/types";
 import type { Observable } from "rxjs";
-import type { Ref } from "../remoteConfig/remoteSource/DynamicConfigSource";
+import type { Logger } from "../../logger/index.js";
+import type { Primitive } from "./base.js";
+import type { ArgvParsingParams, AddOptionType } from "./args.js";
+import type { IOnceRemoteConfigValue, IStreamedRemoteConfigValue } from "../remoteConfig/remoteValues/types.js";
+import type { Ref } from "../remoteConfig/remoteSource/DynamicConfigSource.js";
 
 export enum ErrorHandle {
     IGNORE = "IGNORE",

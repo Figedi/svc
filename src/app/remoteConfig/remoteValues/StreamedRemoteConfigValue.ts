@@ -1,6 +1,6 @@
 import type { Observable, Subscription } from "rxjs";
-import type { ServiceWithLifecycleHandlers } from "../../types/service";
-import type { IStreamedRemoteConfigValue } from "./types";
+import type { ServiceWithLifecycleHandlers } from "../../types/service.js";
+import type { IStreamedRemoteConfigValue } from "./types.js";
 import { map } from "rxjs/operators";
 
 export class StreamedRemoteConfigValue<ParentSchema, Schema = ParentSchema>
@@ -10,7 +10,10 @@ export class StreamedRemoteConfigValue<ParentSchema, Schema = ParentSchema>
 
     private output$!: Observable<Schema>;
 
-    constructor(private parentStream: Observable<ParentSchema>, private projection?: (parent: ParentSchema) => Schema) {
+    constructor(
+        private parentStream: Observable<ParentSchema>,
+        private projection?: (parent: ParentSchema) => Schema,
+    ) {
         this.init();
     }
 

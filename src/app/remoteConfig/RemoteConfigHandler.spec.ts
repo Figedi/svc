@@ -1,8 +1,8 @@
 import { spy, assert } from "sinon";
 import { expect } from "chai";
 import { Subject } from "rxjs";
-import { RemoteConfigHandler } from "./RemoteConfigHandler";
-import { sleep } from "../utils";
+import { RemoteConfigHandler } from "./RemoteConfigHandler.js";
+import { sleep } from "../utils/index.js";
 
 describe("RemoteConfigHandler", () => {
     it("should call execute whenever the predicate yields a truthy result", async () => {

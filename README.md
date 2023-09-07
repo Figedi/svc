@@ -8,7 +8,6 @@ Replace them with non nodejs related versions for edge compat
 - axios <-- replace with isomorphic fetch
 - update readme
 - remoteConfigFactory infer more default values from app-builder (e.g. serviceName, logger, poll, etc)
-
 ## Features
 
 This framework is the base for most of my µ-services. Some functionalities include:

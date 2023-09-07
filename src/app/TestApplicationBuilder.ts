@@ -1,7 +1,7 @@
 import type { Container } from "inversify";
-import type { ApplicationBuilder, RegisterFnArgs } from "./ApplicationBuilder";
-import type { Logger } from "../logger";
-import type { UnpackTransformConfigTypes } from "./types";
+import type { ApplicationBuilder, RegisterFnArgs } from "./ApplicationBuilder.js";
+import type { Logger } from "../logger/index.js";
+import type { UnpackTransformConfigTypes } from "./types/index.js";
 
 export type Stub<T> = {
     [k in keyof T]: any;
@@ -34,7 +34,7 @@ export class TestApplicationBuilder<Config> {
                     const stub = registerFn(this.getAppBuilderProp<any>("buildResolveArgs")(context.container));
                     this.stubs[name] = stub;
                     return stub;
-                } catch (e) {
+                } catch (e: any) {
                     this.getAppBuilderProp<Logger>("rootLogger").info(
                         `Error while instantiating service '${name}': ${e.message}`,
                     );

@@ -1,7 +1,7 @@
 import { expect } from "chai";
-import { ApplicationBuilder } from "./ApplicationBuilder";
-import { TestApplicationBuilder } from "./TestApplicationBuilder";
-import type { Command } from "./types/app";
+import { ApplicationBuilder } from "./ApplicationBuilder.js";
+import { TestApplicationBuilder } from "./TestApplicationBuilder.js";
+import type { Command } from "./types/app.js";
 
 describe("TestApplicationBuilder", () => {
     const createDefaultCommand = (depThing: Record<string, any>): Command => ({

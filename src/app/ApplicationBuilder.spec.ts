@@ -2,9 +2,9 @@ import { MeteringRecorder } from "@figedi/metering";
 import { expect } from "chai";
 import { assert, stub } from "sinon";
 
-import { AppBuilderBindings, ApplicationBuilder } from "./ApplicationBuilder";
-import { type Command, type Provider, ErrorHandle, ShutdownHandle, type AppConfig } from "./types/app";
-import { type Logger, createStubbedLogger } from "../logger";
+import { AppBuilderBindings, ApplicationBuilder } from "./ApplicationBuilder.js";
+import { type Command, type Provider, ErrorHandle, ShutdownHandle, type AppConfig } from "./types/app.js";
+import { type Logger, createStubbedLogger } from "../logger/index.js";
 
 describe("ApplicationBuilder", function AppBuilderTest() {
     this.timeout(20000);
@@ -104,7 +104,7 @@ describe("ApplicationBuilder", function AppBuilderTest() {
                 .registerDefaultCommand("start", ({ resolve, config }) => {
                     expect(config.a.deep.overwriteable).to.eq("hello-new-value");
                     expect(resolve("dependencyB")).to.deep.eq({ dependency: config.a.deep.overwriteable });
-                    return createDefaultCommand(resolve("providerB"), config.a.deep.bool, "0", done);
+                    return createDefaultCommand(resolve("providerB"), config.a.deep.bool, "0", done) as any;
                 })
                 .run({
                     config: {
