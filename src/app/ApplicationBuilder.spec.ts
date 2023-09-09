@@ -4,7 +4,7 @@ import { assert, stub } from "sinon";
 
 import { AppBuilderBindings, ApplicationBuilder } from "./ApplicationBuilder.js";
 import { type Command, type Provider, ErrorHandle, ShutdownHandle, type AppConfig } from "./types/app.js";
-import { type Logger, createStubbedLogger } from "../logger/index.js";
+import { type Logger, createStubbedLogger } from "./utils/logger.js";
 
 describe("ApplicationBuilder", function AppBuilderTest() {
     this.timeout(20000);

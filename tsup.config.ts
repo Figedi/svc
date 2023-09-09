@@ -1,7 +1,7 @@
 import { defineConfig } from "tsup";
 
 export default defineConfig({
-    entry: ["src/index.ts", "src/k8s/index.ts", "src/logger/index.ts", "src/remoteConfig/index.ts"],
+    entry: ["src/index.ts", "src/k8s/index.ts", "src/remoteConfig/index.ts"],
     format: ["cjs", "esm"],
     target: "es2022",
 

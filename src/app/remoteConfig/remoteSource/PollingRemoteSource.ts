@@ -8,7 +8,7 @@ import { BaseRemoteSource } from "./BaseRemoteSource.js";
 import { MaxRetriesWithDataError, MaxRetriesWithoutDataError } from "./errors.js";
 import type { IJsonDecryptor, IReloadingStrategy, RemoteDependencyArgs } from "../types/index.js";
 import type { IRemoteSource } from "./types.js";
-import type { Logger } from "../../../logger/index.js";
+import type { Logger } from "../../utils/logger.js";
 import {
     type AddTransformConfigToPrimitives,
     type DynamicOnceTransformConfig,

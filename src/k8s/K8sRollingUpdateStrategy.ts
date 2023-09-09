@@ -1,7 +1,7 @@
 import type { IReloadingStrategy, IReplicaService } from "../app/remoteConfig/index.js";
 import type { ServiceWithLifecycleHandlers } from "../app/types/index.js";
 import { sleep } from "../app/utils/index.js";
-import type { Logger } from "../logger/index.js";
+import type { Logger } from "../app/utils/logger.js";
 
 /**
  * Reloading-strategy to gracefully restart a pod with neighbouring replicas.

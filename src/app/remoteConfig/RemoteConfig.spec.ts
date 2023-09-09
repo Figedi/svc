@@ -17,7 +17,7 @@ import {
 } from "./shared.specFiles/index.js";
 import { TestApplicationBuilder } from "../TestApplicationBuilder.js";
 import { PollingRemoteSource } from "./remoteSource/PollingRemoteSource.js";
-import { createStubbedLogger } from "../../logger/index.js";
+import { createStubbedLogger } from "../utils/logger.js";
 import { ApplicationBuilder } from "../ApplicationBuilder.js";
 import type { ReactsOnFn } from "./types/index.js";
 import { InvalidConfigWithoutDataError, MaxRetriesWithoutDataError } from "./remoteSource/index.js";

@@ -3,7 +3,7 @@ import type { Container } from "inversify";
 import type { ValidatorSpec, Spec } from "envalid";
 import type { ParsedArgs } from "minimist";
 import type { Observable } from "rxjs";
-import type { Logger } from "../../logger/index.js";
+import type { Logger } from "../utils/logger.js";
 import type { Primitive } from "./base.js";
 import type { ArgvParsingParams, AddOptionType } from "./args.js";
 import type { IOnceRemoteConfigValue, IStreamedRemoteConfigValue } from "../remoteConfig/remoteValues/types.js";

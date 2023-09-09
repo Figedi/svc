@@ -44,7 +44,7 @@ import {
     set,
 } from "lodash-es";
 import { str, bool, num, host, port, url, json, cleanEnv } from "envalid";
-import { createLogger, type Logger } from "../logger/index.js";
+import { createLogger, type Logger } from "./utils/logger.js";
 import {
     sleep,
     remapTree,

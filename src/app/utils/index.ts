@@ -4,3 +4,4 @@ export * from "./constantCase.js";
 export * from "./parseBoolean.js";
 export * from "./isErrorType.js";
 export * from "./service.js";
+export * from "./logger.js";

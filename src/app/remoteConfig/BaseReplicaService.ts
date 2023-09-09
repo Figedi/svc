@@ -1,5 +1,5 @@
 import type { IReplicaService } from "./types/index.js";
-import type { Logger } from "../../logger/index.js";
+import type { Logger } from "../utils/logger.js";
 
 export class BaseReplicaService implements IReplicaService {
     public async runsInK8s(): Promise<boolean> {

@@ -1,6 +1,6 @@
 import type { Container } from "inversify";
 import type { ApplicationBuilder, RegisterFnArgs } from "./ApplicationBuilder.js";
-import type { Logger } from "../logger/index.js";
+import type { Logger } from "./utils/logger.js";
 import type { UnpackTransformConfigTypes } from "./types/index.js";
 
 export type Stub<T> = {

@@ -8,7 +8,7 @@ import stringify from "fast-json-stable-stringify";
 
 import { remapTreeAsync } from "../../utils/index.js";
 import { InvalidConfigWithoutDataError } from "./errors.js";
-import type { Logger } from "../../../logger/index.js";
+import type { Logger } from "../../utils/logger.js";
 import type { IJsonDecryptor, RemoteDependencyArgs } from "../types/index.js";
 import type { ConfigMetrics } from "./types.js";
 import type { ServiceWithLifecycleHandlers } from "../../types/index.js";
