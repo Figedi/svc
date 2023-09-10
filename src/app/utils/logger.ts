@@ -1,4 +1,7 @@
-import { pino, type Logger as PinoLogger, type LoggerOptions as PinoLoggerOptions } from "pino";
+// eslint-disable-next-line import/no-named-default
+import { isFunction } from "lodash-es";
+import type { Logger as PinoLogger, LoggerOptions as PinoLoggerOptions } from "pino";
+import * as pino from "pino";
 
 export interface LoggerBaseProperties {
     service: string;
@@ -10,9 +13,9 @@ export interface LoggerOptions<BaseProperties extends LoggerBaseProperties> {
 }
 
 export type Logger = PinoLogger;
-
-export const createLogger = <T extends LoggerBaseProperties>(opts: LoggerOptions<T>): PinoLogger =>
-    pino({
+export const createLogger = <T extends LoggerBaseProperties>(opts: LoggerOptions<T>): PinoLogger => {
+    const pinoFn = (isFunction(pino) ? pino : pino.pino ?? pino.default) as any;
+    return pinoFn({
         level: opts.level,
         redact: {
             paths: ["*.password", "password", "*.token", "token", "*.secret", "secret"],
@@ -21,5 +24,9 @@ export const createLogger = <T extends LoggerBaseProperties>(opts: LoggerOptions
         base: opts.base,
         timestamp: () => `,"timestamp":"${new Date().toISOString()}"`,
     });
+};
 
-export const createStubbedLogger = (): PinoLogger => pino({ enabled: false });
+export const createStubbedLogger = (): PinoLogger => {
+    const pinoFn = (isFunction(pino) ? pino : pino.pino ?? pino.default) as any;
+    return pinoFn({ enabled: false });
+};

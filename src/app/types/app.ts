@@ -1,4 +1,3 @@
-import type { Logger as PinoLogger } from "pino";
 import type { Container } from "inversify";
 import type { ValidatorSpec, Spec } from "envalid";
 import type { ParsedArgs } from "minimist";
@@ -236,7 +235,7 @@ export type AppConfig = {
 export interface BaseRegisterFnArgs<Config> {
     config: UnpackTransformConfigTypes<Config>;
     app: AppConfig;
-    logger: PinoLogger;
+    logger: Logger;
 }
 export interface DynamicConfigFnArgs<Config> extends BaseRegisterFnArgs<Config> {
     awaited: DynamicPromiseTransformFn;
