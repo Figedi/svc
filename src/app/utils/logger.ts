@@ -1,4 +1,4 @@
-import pino, { type LoggerOptions as PinoLoggerOptions } from "pino";
+import { pino, type Logger as PinoLogger, type LoggerOptions as PinoLoggerOptions } from "pino";
 
 export interface LoggerBaseProperties {
     service: string;
@@ -9,10 +9,10 @@ export interface LoggerOptions<BaseProperties extends LoggerBaseProperties> {
     base: BaseProperties;
 }
 
-export type Logger = pino.Logger;
+export type Logger = PinoLogger;
 
-export const createLogger = <T extends LoggerBaseProperties>(opts: LoggerOptions<T>): pino.Logger =>
-    pino.pino({
+export const createLogger = <T extends LoggerBaseProperties>(opts: LoggerOptions<T>): PinoLogger =>
+    pino({
         level: opts.level,
         redact: {
             paths: ["*.password", "password", "*.token", "token", "*.secret", "secret"],
@@ -22,4 +22,4 @@ export const createLogger = <T extends LoggerBaseProperties>(opts: LoggerOptions
         timestamp: () => `,"timestamp":"${new Date().toISOString()}"`,
     });
 
-export const createStubbedLogger = (): pino.Logger => pino.pino({ enabled: false });
+export const createStubbedLogger = (): PinoLogger => pino({ enabled: false });
